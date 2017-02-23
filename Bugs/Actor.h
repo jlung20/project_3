@@ -42,7 +42,7 @@ public:
 	virtual bool canFly() const { return false; } // override for adult grasshoppers
 	virtual bool isStunned() const { return false; } // override for animals
 	virtual bool isSleeping() const { return false; } // override for grasshoppers
-	virtual bool isDead() const { return false; }
+	virtual bool isDead() const { return false; } // this is not right... need to pay attention with inheritance... ONLY SEES THIS!!!
 	virtual bool die(); // if it can't die, returns false.
 	virtual int getColonyNumber() const { return -1; } // if it can't be associated with a particular colony, return -1
 	//virtual bool beEaten(int amount) { return false; } // intended for food
@@ -76,6 +76,7 @@ private:
 	StudentWorld* ptrToWorld;
 	int actorID;
 	int m_lastMove;
+	//virtual bool isDead() const = 0;
 	virtual void move() = 0;
 	//int m_timesCalled; // delete this later.
 };
@@ -160,9 +161,11 @@ public:
 	void doneTraveling() { m_distanceToTravel = 0; }
 	void oneStepCloser() { m_distanceToTravel--; }
 	void addMoreDistance() { m_distanceToTravel = randInt(2, 10); }
+	virtual void doSomething() { manageHealth(); }
 
 	virtual ~Grasshopper() {} // look at comments for ant destructor
 private:
+	bool manageHealth();
 	int m_distanceToTravel;
 	int m_movesAsleep;
 };
@@ -187,6 +190,8 @@ public:
 	virtual void doSomething() {}
 	virtual bool canFly() const { return true; }
 	virtual bool canAttack() const { return true; }
+	virtual bool canBeStunned() const { return false; }
+	virtual bool canBePoisoned() const { return false; }
 	virtual ~AdultGrasshopper() {}
 private:
 };
@@ -242,8 +247,8 @@ private:
 class Ant : public GoodAnt {
 public:
 	Ant(int imageID, int x, int y, StudentWorld* worldPtr, Compiler* complr, int colonyNum)
-		: GoodAnt(imageID, x, y, worldPtr, complr, 1500, colonyNum, Actor::getRandomDirection()), 
-		m_instructionCounter(0) {}
+		: GoodAnt(imageID, x, y, worldPtr, complr, 1500, colonyNum, Actor::getRandomDirection()),
+		m_instructionCounter(0), m_commandCounter(0), m_wasBitten(false), m_wasBlocked(false), m_lastSquare(x,y) {}
 		//, m_colonyNumber(imageID), m_compiler(complr) {}
 	// HEY!!! MAY NOT WANT INSTRUCTION COUNTER TO BE SET TO 0!!!
 	//virtual int getColonyNumber() const{ return m_colonyNumber; }
@@ -252,6 +257,12 @@ public:
 
 private:
 	int m_instructionCounter; // initialize this to 0?
+	int m_lastRandInt; // don't access before initializing...
+	int m_foodQuantityHeld; // don't access before initializing
+	int m_commandCounter;
+	Coord m_lastSquare; // was initialized properly? update right after moving? make sure it works with other parts
+	bool m_wasBitten; // have function to manage this.
+	bool m_wasBlocked; // have function to manage this.
 	//int m_colonyNumber;  // get this from the imageID
 	//Compiler* m_compiler;
 };

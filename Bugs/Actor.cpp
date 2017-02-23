@@ -197,6 +197,18 @@ bool Insect::moveRight()
 		return false;
 }
 
+// returns false if dead and should doSomething should stop. else, returns true.
+bool Grasshopper::manageHealth()
+{
+	decrementHP();
+	if (getHealth() <= 0)
+	{
+		die();
+		return false;
+	}
+
+}
+
 // performs the baby grasshopper's specified actions
 void BabyGrasshopper::doSomething()
 {
