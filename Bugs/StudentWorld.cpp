@@ -6,6 +6,7 @@
 #include <iomanip>
 //#include <iostream> // remove later
 using namespace std;
+// make tester programs!
 
 GameWorld* createStudentWorld(string assetDir)
 {
@@ -35,9 +36,9 @@ int StudentWorld::init()
 	std::string fieldFile = getFieldFilename();
 	if (f.loadField(fieldFile) != Field::LoadResult::load_success)
 		return GWSTATUS_LEVEL_ERROR; // something bad happened! should it return this or just false?
-	for (int i = 0; i < GRID_SIZE; i++)
+	for (int i = 0; i < VIEW_HEIGHT; i++)
 	{
-		for (int j = 0; j < GRID_SIZE; j++)
+		for (int j = 0; j < VIEW_WIDTH; j++)
 		{
 			Field::FieldItem item = f.getContentsOf(j, i);
 			if (item == Field::anthill0) // necessary for ensuring that coordinates correspond to proper anthill
@@ -94,7 +95,7 @@ int StudentWorld::init()
 		compilerArr[m_numCompilers] = compilerForEntrant; // refer to StudentWorld.h for an explanation of why I think it makes sense to have a compiler arrray
 		m_numCompilers++; // only add to tally if it's a good compiler
 		//identifyAndAllocate(Field::anthill0, anthillCoords[i], i, compilerForEntrant); what is this line doing here?
-		switch (i) // sorry that this is messy. the problem is just that I don't know of a very clean way to add an enum and an int
+		switch (i)
 		{
 		case 0: identifyAndAllocate(Field::anthill0, anthillCoords[i], i, compilerForEntrant); break;
 		case 1: identifyAndAllocate(Field::anthill1, anthillCoords[i], i, compilerForEntrant); break;
@@ -108,9 +109,9 @@ int StudentWorld::init()
 	Coord outOfBounds;
 	actorMap[outOfBounds] = vector<Actor*>();
 
-	for (int i = 0; i < GRID_SIZE; i++)
+	for (int i = 0; i < VIEW_HEIGHT; i++)
 	{
-		for (int j = 0; j < GRID_SIZE; j++)
+		for (int j = 0; j < VIEW_WIDTH; j++)
 		{
 			Coord current(j, i);
 			// new stuff below this
@@ -375,8 +376,9 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		else
 		{
 			// dynamic cast the actor pointer to pheromone pointer
-			Pheromone* pherPtr = dynamic_cast<Pheromone*> (actorPtr);
-			pherPtr->addHealth(256);
+			//Pheromone* pherPtr = dynamic_cast<Pheromone*> (actorPtr);
+			actorPtr->addHealth(256);
+			//pherPtr->addHealth(256);
 		}
 		return;
 	}
@@ -396,8 +398,9 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		else
 		{
 			// dynamic cast the actor pointer to pheromone pointer
-			Food* foodPtr = dynamic_cast<Food*> (actorPtr);
-			foodPtr->addHealth(foodQuantity);
+			//Food* foodPtr = dynamic_cast<Food*> (actorPtr);
+			//foodPtr->addHealth(foodQuantity);
+			actorPtr->addHealth(foodQuantity);
 		}
 		return;
 	}
@@ -605,9 +608,9 @@ void StudentWorld::setAnthillNames()
 		{
 			if (identifyByThingID(vecIter) == IID_ANT_HILL)
 			{
-				auto anthillPtr = dynamic_cast<Anthill*>(vecIter);
+				//auto anthillPtr = dynamic_cast<Anthill*>(vecIter);
 				//antColonyName = anthillPtr->getCompiler()->getColonyName();
-				int colonyNum = anthillPtr->getColonyNumber();
+				int colonyNum = vecIter->getColonyNumber();
 				antColonyName = compilerArr[colonyNum]->getColonyName();
 				anthillNames[colonyNum] = antColonyName;
 			}
@@ -692,17 +695,24 @@ bool StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eate
 
 Actor* StudentWorld::getPtrToThingAtCurrentSquare(int thingID, Coord location)
 {
-	int thingCount = 0;
-	map<Coord, vector<Actor*>>::iterator iter = actorMap.find(location);
-	if (iter != actorMap.end())
+	//map<Coord, vector<Actor*>>::iterator iter = actorMap.find(location);
+	//if (iter != actorMap.end())
+	//{
+	for (auto vecPtr : actorMap[location])
 	{
-		for (auto vecPtr : iter->second)
+		//if (vecPtr->getActorID() == thingID)
+		if (identifyByThingID(vecPtr) == thingID)
 		{
-			//if (vecPtr->getActorID() == thingID)
-			if (identifyByThingID(vecPtr) == thingID)
-			{
-				return vecPtr;
-			}
+			return vecPtr;
+		}
+	}
+	//}
+	Coord outOfBounds;
+	for (Actor* actorPtr : actorMap[outOfBounds])
+	{
+		if (identifyByThingID(actorPtr) == thingID)
+		{
+			return actorPtr;
 		}
 	}
 	return nullptr;
@@ -721,7 +731,7 @@ int StudentWorld::identifyByThingID (Actor* actor) const
 		thingID = IID_WATER_POOL;
 	else if (actor->canFly())
 		thingID = IID_ADULT_GRASSHOPPER;
-	else if (actor->canEat() && !actor->canBePoisoned())
+	else if (actor->canEat() && !actor->canBePoisoned()) // I might need to do more in another function to find out whose anthill it is
 		thingID = IID_ANT_HILL;
 	else if (actor->getColonyNumber() == -1)
 		thingID = IID_BABY_GRASSHOPPER;
@@ -749,4 +759,59 @@ int StudentWorld::identifyByThingID (Actor* actor) const
 	//	cerr << "Something went wrong with identify function" << "actorID: " << actor->getActorID() << "thingID: " << thingID << endl;
 	return thingID;
 }
+/*
+void StudentWorld::poisonAllAtCurrentSquare(Coord current)
+{
+	for (Actor* actorPtr : actorMap[current])
+	{
+		if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+		{
+			actorPtr->bePoisoned();
+		}
+	}
+	Coord outOfBounds;
+	for (Actor* actorPtr : actorMap[outOfBounds])
+	{
+		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
+		{
+			if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+			{
+				actorPtr->bePoisoned();
+			}
+		}
+	}
+}
+
+void StudentWorld::stunAllAtCurrentSquare(Coord current)
+{
+	for (Actor* actorPtr : actorMap[current])
+	{
+		if (actorPtr->canBeStunned() && !actorPtr->hasBeenAttackedHere(current))
+		{
+			actorPtr->bePoisoned();
+		}
+	}
+	Coord outOfBounds;
+	for (Actor* actorPtr : actorMap[outOfBounds])
+	{
+		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
+		{
+			if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+			{
+				actorPtr->bePoisoned();
+			}
+		}
+	}
+}*/
+
+bool StudentWorld::pathBlocked(Coord location)
+{
+	for (Actor* maybeRocky : actorMap[location])
+	{
+		if (maybeRocky->canBlockPath())
+			return true;
+	}
+	return false;
+}
+
 // make sure that implementation of pheromone constructor makes sense

@@ -140,6 +140,7 @@
     <ClInclude Include="GameController.h" />
     <ClInclude Include="GameWorld.h" />
     <ClInclude Include="GraphObject.h" />
+    <ClInclude Include="REMOVETHISONCEDONE.h" />
     <ClInclude Include="SoundFX.h" />
     <ClInclude Include="SpriteManager.h" />
     <ClInclude Include="StudentWorld.h" />

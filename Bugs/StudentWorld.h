@@ -36,6 +36,7 @@ public:
 
 	// add a function for when stuff dies!!!
 
+	// starting to phase this function out...
 	// returns number of things in a current square-- doesn't say how much of say a certain pheromone there is at the square though
 	// also... the actorPtr is set to point to the first element in the vector that matches thingID or nullptr if nothing matches
 	int howManyAreThereAtCurrentSquare(int thingID, Coord location);
@@ -47,10 +48,16 @@ public:
 	// returns true if at least one unit of food can (and is) consumed
 	bool eatFoodAtCurrentSquare(Coord current, int amount, Actor* eater);
 
-	bool actorDie(Actor* actor);
+	//bool actorDie(Actor* actor);
 
 	// takes thingID and matches it based on properties of the actor
 	int StudentWorld::identifyByThingID(Actor* actor) const;
+
+	void stunAllAtCurrentSquare(Coord current) {} // fix this later
+
+	void poisonAllAtCurrentSquare(Coord current) {}
+	
+	bool pathBlocked(Coord location);
 
 	~StudentWorld() {
 		//std::cerr << "Hello from destructor. Is this called before or after cleanUp()?" << std::endl;
@@ -101,6 +108,8 @@ private:
 
 	// returns pointer to the first actor of the proper type or nullptr if no such actor is found within the vector mapped from a certain key
 	Actor* getPtrToThingAtCurrentSquare(int thingID, Coord location);
+
+	// void poison(); ADD THIS LATER PERHAPS? NOT SURE IF NECESSARY
 
 	// also need a function that checks if there's anything mapped to (-1, -1) that's actually somewhere of interest.
 };

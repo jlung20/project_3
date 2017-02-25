@@ -71,5 +71,8 @@
     <ClInclude Include="StudentWorld.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="REMOVETHISONCEDONE.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

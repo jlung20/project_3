@@ -7,9 +7,10 @@ int Actor::getCurrentMove() const
 { 
 	return ptrToWorld->getTicksElapsed(); 
 }
-
+/*
 // need to have this in the base class because ptrToWorld is a private member of Actor
 // intended for ants and grasshoppers
+// should not exist
 bool Actor::die()
 {
 	if (!isDead())
@@ -24,14 +25,21 @@ bool Actor::die()
 bool EnergeticActor::die() // everything that has energy
 { 
 	return isDead(); 
-}
+}*/
 
 bool Insect::die() // all insects
 {
-	return Actor::die();
+	if (!isDead())
+		return false;
+	else
+	{
+		Coord currentLocation(this->getX(), this->getY());
+		getPtrToWorld()->addNewDuringGame(IID_FOOD, currentLocation, 100); // add food to map
+		return true;
+	}
 }
 
-bool ImmortalActor::die() // pebble, poison, water pool
+/*bool ImmortalActor::die() // pebble, poison, water pool
 {
 	return false;
 }
@@ -42,7 +50,7 @@ bool SuperAnt::die()
 		return EnergeticActor::die();
 	else // ant
 		return Insect::die();
-}
+}*/
 
 /*// should only be called if it is dead and can die. if it can't, return false.
 bool Insect::die() // wait should this be a thing?
@@ -128,7 +136,7 @@ bool Food::beEaten(int amount)
 bool Insect::canMove(Coord attemptedLocation)
 {
 	//Actor* uselessPtr;
-	return getPtrToWorld()->howManyAreThereAtCurrentSquare(IID_ROCK, attemptedLocation) == 0; // remove all of the things of this form.
+	return !getPtrToWorld()->pathBlocked(attemptedLocation); // remove all of the things of this form. changed from identify actors at current square
 }
 
 // the following move functions are pretty self-explanatory
@@ -151,7 +159,7 @@ bool Insect::moveInCurrentDirection()
 // with them being separated.
 bool Insect::moveUp()
 {
-	Coord desiredLocation(this->getX(), this->getY() + 1);
+	Coord desiredLocation(getX(), getY() + 1);
 	if (canMove(desiredLocation))
 	{
 		moveTo(desiredLocation.getCol(), desiredLocation.getRow());
@@ -163,7 +171,7 @@ bool Insect::moveUp()
 
 bool Insect::moveDown()
 {
-	Coord desiredLocation(this->getX(), this->getY() - 1);
+	Coord desiredLocation(getX(), getY() - 1);
 	if (canMove(desiredLocation))
 	{
 		moveTo(desiredLocation.getCol(), desiredLocation.getRow());
@@ -175,7 +183,7 @@ bool Insect::moveDown()
 
 bool Insect::moveLeft()
 {
-	Coord desiredLocation(this->getX() - 1, this->getY());
+	Coord desiredLocation(getX() - 1, getY());
 	if (canMove(desiredLocation))
 	{
 		moveTo(desiredLocation.getCol(), desiredLocation.getRow());
@@ -187,7 +195,7 @@ bool Insect::moveLeft()
 
 bool Insect::moveRight()
 {
-	Coord desiredLocation(this->getX() + 1, this->getY());
+	Coord desiredLocation(getX() + 1, getY());
 	if (canMove(desiredLocation))
 	{
 		moveTo(desiredLocation.getCol(), desiredLocation.getRow());
@@ -197,7 +205,16 @@ bool Insect::moveRight()
 		return false;
 }
 
+bool Insect::canBeStunnedAtCurrentSquare(Coord current) const
+{
+	if (!(current == m_locationLastStunned)) // this branch checks where the insect was last stunned
+		return true; // if not at current location, return that it can be stunned
+	else // this branch checks whether the insect was stunned here and has not moved since
+		return !(m_previousLocation == current);
+}
+
 // returns false if dead and should doSomething should stop. else, returns true.
+// may not need this.
 bool Grasshopper::manageHealth()
 {
 	decrementHP();
@@ -206,23 +223,53 @@ bool Grasshopper::manageHealth()
 		die();
 		return false;
 	}
-
+	return true;
 }
 
+bool Insect::manageSleepAndStun()
+{
+	/*if (hasDoneSomething())
+	{
+		return false;
+	}*/
+	if (isInactive())
+	{
+		decrementMovesInactive();
+		//decrementMovesStunnedAndAsleep();
+		return true;
+	}
+	else
+		return false;
+}
+
+// so the format above suggests that I should have a pure virtual isStunned common among the insect class
+// should ants and adult grasshoppers inherit from baby grasshoppers?
+
+
+// HEY CHECK THAT IT'S NOT STUCK TOO LONG AGAINST WALLS!
+
+// need evolve function
 // performs the baby grasshopper's specified actions
 void BabyGrasshopper::doSomething()
 {
 	/*incrementTimesCalled();
 	numberTimesCalled();*/
-	decrementHP();
+	/*decrementHP();
 	if (getHealth() <= 0) // in my implementation, it's not necessary to do anything special to check if it's dead (handled by isDead fn)
 	{
 		Coord currentLocation(this->getX(), this->getY());
 		getPtrToWorld()->addNewDuringGame(IID_FOOD, currentLocation, 100); // add food to map
 		return;
-	}
+	}*/
+	if (!manageHealth())
+		return;
 	else
 	{
+		if (getMovesInactive() > 0)
+		{
+			decrementMovesInactive();
+			return;
+		}/*
 		if (isStunned())
 		{
 			decrementMovesStunned();
@@ -232,7 +279,7 @@ void BabyGrasshopper::doSomething()
 		{
 			decrementMovesAsleep();
 			return;
-		}
+		}*/
 		else if (getHealth() >= 1600)
 		{
 			reduceHP(9000); // not pretty, but it gets the job done. effectively sets baby grasshopper to dead.
@@ -264,3 +311,17 @@ void BabyGrasshopper::doSomething()
 		goToSleep();
 	}
 }
+
+void Poison::attackAllActorsAtCurrentSquare()
+{
+	Coord current(getX(), getY());
+	getPtrToWorld()->poisonAllAtCurrentSquare(current);
+}
+
+void WaterPool::attackAllActorsAtCurrentSquare()
+{
+	Coord current(getX(), getY());
+	getPtrToWorld()->stunAllAtCurrentSquare(current);
+}
+
+// for other side, have record of where it last was and where it was last stunned
