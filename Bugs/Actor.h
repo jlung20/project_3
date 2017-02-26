@@ -36,7 +36,7 @@ public:
 	virtual bool hasEnergyOrHealth() const = 0; // override for those not food, pheromone, anthill, and animals
 	virtual bool canBlockPath() const { return false; } // override for pebble. is this implementation now a problem?
 	virtual bool canStun() const = 0; // override for water. not totally perfect if called from within here
-	virtual bool canBeStunned() const { return false; } // override for animals. is this fine?
+	virtual bool canBeStunned() const { return false; } // override for animals. is this fine? // bring this together with canBePoisoned
 	virtual bool canBeEaten() const { return false; } // override for food, obviously. same question
 	virtual bool canBePoisoned() const { return false; } // override for insects, exc. anthill. same.
 	virtual bool canAttack() const { return false; } // override for some animals. same.
@@ -44,17 +44,22 @@ public:
 	virtual bool canPoison() const { return false; } //override for poison. same.
 	virtual bool canFly() const { return false; } // override for adult grasshoppers. same.
 	virtual bool canBite() const { return false; } // override for some animals. should I try to combine this with canAttack?
+	virtual bool isAttackable(int colonyNumber, Actor* self) { return false; }
 	// add canBeBitten? need to pass in colony number for comparison. would override for some animals
 	virtual bool isStunned() const { return false; } // override for animals. consider revising this structure later.
 	virtual bool isInactive() const { return false; } // override for insects
 	virtual bool isSleeping() const { return false; } // override for grasshoppers
 	virtual bool isDead() const = 0; // this is not right... need to pay attention with inheritance... ONLY SEES THIS!!!
 	virtual int getColonyNumber() const { return m_colonyNumber; } // if it can't be associated with a particular colony, return -1
-	virtual bool hasBeenStunnedOrPoisonedAtCurrentSquare(Coord current) const { return false; } // override for insects.
+	//virtual bool hasBeenStunnedOrPoisonedAtCurrentSquare(Coord current) const { return false; } // override for insects.
+	virtual void updateLastStunnedLocation(const Coord &newStunLocation) {}
+	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const { return false; }
 	// virtual bool die() { return false; } // if it can't die, returns false.
 	//virtual bool beEaten(int amount) { return false; } // intended for food
 	//virtual void eat(int amount) {}
+	virtual void addMovesInactive(int amount) {}
 	virtual void addHealth(int amount) {} // implement this I guess. make sure all the functions in energeticActor that need to be called can be found here.
+	virtual void biteBack() {}
 	virtual int reduceHP(int amount) { return 0; } // can't reduce HP for many things.
 
 	// is there any destruction in common?
@@ -206,8 +211,11 @@ public:
 	//virtual bool isSleeping() const { return m_movesAsleep != 0; } // can I remove this?
 	//virtual bool hasBeenStunnedOrPoisonedAtCurrentSquare(Coord current) const { //change this implementation }
 	//void decrementMovesStunned() { m_movesStunned--; }
+	virtual bool isAttackable(int colonyNumber, Actor* self);
 	void decrementMovesInactive() { m_movesInactive--; }
-	virtual bool canBeStunnedAtCurrentSquare(Coord current) const; // should call hasBeenStunnedAtCurrentSquare. or maybe just incorporate that fn's functionality.
+	virtual void updateLastStunnedLocation(const Coord &newStunLocation);
+	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const; // returns if it's possible for something to be stunned at current location
+	virtual void addMovesInactive(int amount) { m_movesInactive += amount; } // need it to be public so StudentWorld can call it
 	// remember to override for adult grasshoppers
 	//maybe add more about poisoning
 	
@@ -225,11 +233,12 @@ protected:
 	bool moveRight();
 	bool moveLeft();
 	bool moveInCurrentDirection();
-	bool manageSleepAndStun();
-	void addMovesInactive(int amount) { m_movesInactive += amount; }
+	bool manageDamage();
 	int getMovesInactive() { return m_movesInactive; }
+	void updatePreviousLocation();
+	virtual bool attackEnemy(int colonyNumber, Coord location, int damage);
 
-	virtual bool canMove(Coord attemptedLocation); // should it be virtual? will ant override it? might call it, right? and then do more stuff
+	virtual bool canMove(const Coord &attemptedLocation); // should it be virtual? will ant override it? might call it, right? and then do more stuff
 private:
 	//int m_movesStunned; // consider removing this later
 	int m_movesInactive;
@@ -277,17 +286,22 @@ public:
 	bool areWeThereYet() const { return m_distanceToTravel <= 0; } // checks if it's arrived
 	void doneTraveling() { m_distanceToTravel = 0; }
 	void oneStepCloser() { m_distanceToTravel--; }
+	virtual void doSomething();
 	void addMoreDistance() { m_distanceToTravel = randInt(2, 10); }
 	//virtual void doSomething() { manageHealth(); }; WAIT HELLO MIGHT WANT THIS SO I DON"T HAVE TO REDO FUNCTIONS
-protected:
-	bool manageHealth(); //probably going to move this to private once stuff gets combined in doSomething
-
 	virtual ~Grasshopper() {} // look at comments for ant destructor
+protected:
+	bool manageHealth(); //probably going to move this to private once stuff gets combined in doSomething... mmm... might be able to bring it up to energeticActor
+	//bool manageDamage();
+
 private:
 	//bool manageHealth();
+	virtual bool doAdultOrImmatureThings() = 0;
 	int m_distanceToTravel;
 	//int m_movesAsleep;
 };
+
+// have a do differentiated stuff function?
 
 // passing in -1 for maxHealth because in my implementation, it would be problematic
 // if I passed in 1600. after all, doSomething takes care of evolving if it becomes necessary
@@ -297,9 +311,11 @@ public:
 	BabyGrasshopper(int x, int y, StudentWorld* worldPtr) 
 		: Grasshopper(IID_BABY_GRASSHOPPER, x, y, worldPtr, 500) {}
 	virtual bool canAttack() const { return false; }
-	virtual void doSomething();
+	//virtual void doSomething();
 	virtual ~BabyGrasshopper() {} // look at comments for ant destructor
 private:
+	bool evolve();
+	virtual bool doAdultOrImmatureThings();
 };
 
 // pass in maxHealth = -1. have "hop" member fn
@@ -307,13 +323,20 @@ class AdultGrasshopper : public Grasshopper {
 public:
 	AdultGrasshopper(int x, int y, StudentWorld* worldPtr)
 		: Grasshopper(IID_ADULT_GRASSHOPPER, x, y, worldPtr, 1600) {}
-	virtual void doSomething() {}
+	//virtual void doSomething() {}
 	virtual bool canFly() const { return true; }
 	virtual bool canBeStunned() const { return false; }
 	virtual bool canBePoisoned() const { return false; }
-	virtual bool hasBeenStunnedOrPoisonedAtCurrentSquare(Coord current) const { return false; } // may or may not truly need this here
+	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const { return false; }
+	virtual void biteBack();
+	//virtual bool hasBeenStunnedOrPoisonedAtCurrentSquare(Coord current) const { return false; } // may or may not truly need this here
 	virtual ~AdultGrasshopper() {}
 private:
+	virtual bool doAdultOrImmatureThings();
+	bool fly();
+	int findNumberOfOpenSquares();
+	bool isValidSquare(Coord square);
+	Coord findNthOpenSquare(int n);
 };
 
 class ImmortalActor : public Actor {

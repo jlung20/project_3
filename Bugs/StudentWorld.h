@@ -32,7 +32,7 @@ public:
 
 	virtual void cleanUp();
 
-	int getTicksElapsed() { return m_ticksElapsed; }
+	int getTicksElapsed() const { return m_ticksElapsed; }
 
 	// add a function for when stuff dies!!!
 
@@ -53,9 +53,11 @@ public:
 	// takes thingID and matches it based on properties of the actor
 	int StudentWorld::identifyByThingID(Actor* actor) const;
 
-	void stunAllAtCurrentSquare(Coord current) {} // fix this later
+	void stunAllAtCurrentSquare(Coord current);
 
-	void poisonAllAtCurrentSquare(Coord current) {}
+	void poisonAllAtCurrentSquare(Coord current);
+
+	bool biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker); // need to check outOfBounds as well.
 	
 	bool pathBlocked(Coord location);
 
@@ -69,6 +71,7 @@ private:
 	int m_ticksElapsed; // tick counter
 	int m_numAnthills;
 	int m_ants[4] = { 0, 0, 0, 0 }; // intended to keep track of how many ants each anthill has
+	int m_antRank[4] = { 1, 1, 1, 1 }; // there is no leader. remove if I end up not going in this direction
 	int m_currentAnthillLeader; // this keeps track of which anthill would win if the game were to end at any given time.
 	// must check every time an ant dies or is generated that this remains true. change if necessary.
 	// if it's -1, there is no leader.
@@ -97,6 +100,8 @@ private:
 	// then stores the pointer in the map in the coordinate pair that corresponds to location
 	bool identifyAndAllocate(Field::FieldItem item, Coord location, int colonyNum = -1, Compiler* compiler = nullptr);
 
+	int numberToBite(Coord location, int colonyNumber, Actor* notThisGuy);
+
 	// removes all objects that have been marked dead
 	void removeDeadSimulationObjects();
 
@@ -109,6 +114,7 @@ private:
 	// returns pointer to the first actor of the proper type or nullptr if no such actor is found within the vector mapped from a certain key
 	Actor* getPtrToThingAtCurrentSquare(int thingID, Coord location);
 
+	Actor* getPtrToIthVictim(Coord location, int colonyNumber, Actor* notThisGuy, int victimNumber);
 	// void poison(); ADD THIS LATER PERHAPS? NOT SURE IF NECESSARY
 
 	// also need a function that checks if there's anything mapped to (-1, -1) that's actually somewhere of interest.

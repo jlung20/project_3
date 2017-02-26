@@ -21,7 +21,7 @@ bool operator < (const Coord& first, const Coord& second) // need this compariso
 		return first.getRow() < second.getRow();
 }
 
-bool operator == (const Coord& first, const Coord& second)
+bool operator == (const Coord& first, const Coord& second) // this was also a very useful operator for seeing if coordinates match
 {
 	return (first.getCol() == second.getCol()) && (first.getRow() == second.getRow());
 }
@@ -81,7 +81,6 @@ int StudentWorld::init()
 	{
 		Compiler *compilerForEntrant = new Compiler;
 		std::string error;
-	//	anthillNames[i] = fileNames[i];
 		if (!compilerForEntrant->compile(fileNames[i], error))
 		{
 			// entrant 0’s source code had a syntax error!
@@ -94,7 +93,6 @@ int StudentWorld::init()
 		}
 		compilerArr[m_numCompilers] = compilerForEntrant; // refer to StudentWorld.h for an explanation of why I think it makes sense to have a compiler arrray
 		m_numCompilers++; // only add to tally if it's a good compiler
-		//identifyAndAllocate(Field::anthill0, anthillCoords[i], i, compilerForEntrant); what is this line doing here?
 		switch (i)
 		{
 		case 0: identifyAndAllocate(Field::anthill0, anthillCoords[i], i, compilerForEntrant); break;
@@ -106,6 +104,7 @@ int StudentWorld::init()
 
 	setAnthillNames();
 
+	// empty vector for (-1, -1)
 	Coord outOfBounds;
 	actorMap[outOfBounds] = vector<Actor*>();
 
@@ -113,13 +112,13 @@ int StudentWorld::init()
 	{
 		for (int j = 0; j < VIEW_WIDTH; j++)
 		{
-			Coord current(j, i);
-			// new stuff below this
+			Coord current(j, i); // where j is column and i is row
+			// unfortunately from a memory-saving perspective, I found myself unable to avoid creating vectors for each coordinate
+			// because there were problems otherwise with accessing locations and the data associated with them
+			// so this creates an empty vector at each spot in the grid
 			if (actorMap.find(current) == actorMap.end())
 				actorMap[current] = vector<Actor*>();
-			// new stuff above this
-			Field::FieldItem item = f.getContentsOf(j, i); // changed to i, j
-			 // NOTE TO SELF: make darn sure this constructs things in the right place
+			Field::FieldItem item = f.getContentsOf(j, i);
 			// this loop ignores anthills because they have already been allocated above. they're separated because it makes
 			// the code above a little less ugly
 			if (item == Field::anthill0 || item == Field::anthill1 || item == Field::anthill2 || item == Field::anthill3)
@@ -131,7 +130,6 @@ int StudentWorld::init()
 	
 	m_ticksElapsed = 0;
 	m_currentAnthillLeader = -1;
-	// don't forget about allocating ants here
 
 	return GWSTATUS_CONTINUE_GAME;
 }
@@ -149,42 +147,15 @@ int StudentWorld::move()
 		// I guess here's as good a place as any to explain what this "outOfBounds" coordinate is and what it does.
 		// Because the spec requires us to keep everything in a single STL data structure, I have this coordinate
 		// reserved in the map for actors added during the course of the game. I do this so as to avoid the possibility
-		// of an actor's doSomething function not being called. It also eliminates problems with vector iterators getting screwy.
+		// of an actor's doSomething function not being called (I have these actors' doSomething functions called at the
+		// end of the turn). It also eliminates problems with vector iterators getting screwy.
 		const Coord outOfBounds;
-		while (mapIterator != actorMap.end()) // this may not work as expected
+		while (mapIterator != actorMap.end())
 		{
-			if (mapIterator->second.empty())
+			if (!mapIterator->second.empty())
 			{
-				// do nothing
-			}
-		/*	else if (mapIterator->first == outOfBounds) // shouldn't ever hit this or it means that something is not going right and stuff is staying in a weird map location
-			{
-				mapIterator++;
-			}*/
-			else
-			{
-				auto vecIterator = mapIterator->second.begin();
-
-				// what if I held a vector of things to be added to the grid? Just so I could keep track of them more easily?
-				/*for (int vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++) // this implementation will require some more work later. and right now!!! usd to be a range-based for loop
-				{
-					int oldX = (mapIterator->second)->getX(), oldY = vecIterator->getY();
-					Coord old(oldX, oldY);
-					if (!vecIterator->isDead() && !vecIterator->hasDoneSomething(m_ticksElapsed))
-					{
-						vecIterator->doSomething();
-						vecIterator->updateLastMove(m_ticksElapsed);
-					}
-					if (vecIterator->getX() != oldX || vecIterator->getY() != oldY)
-					{
-						actorsToBeMoved[old].push_back(vecIterator);
-						vecIterator = nullptr;
-						//Coord current(vecIterator->getX(), vecIterator->getY());
-						//addPtrInMappedVector(current, vecIterator);
-						//removePtrInMappedVector(old, vecIterator);
-					}
-				}*/
-				for (size_t vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++) // this was a pain. hope it works. iterating through like a normal array.
+				// iterating through like a normal array because iterators would get messed up otherwise
+				for (size_t vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++)
 				{
 					int oldX = (mapIterator->second[vecIterator])->getX(), oldY = (mapIterator->second[vecIterator])->getY();
 					Coord old(oldX, oldY);
@@ -195,44 +166,25 @@ int StudentWorld::move()
 					}
 					if ((mapIterator->second[vecIterator])->getX() != oldX || (mapIterator->second[vecIterator])->getY() != oldY)
 					{
-						//actorsToBeMoved[old].push_back(vecIterator);
-						//vecIterator = nullptr;
 						Coord current((mapIterator->second[vecIterator])->getX(), (mapIterator->second[vecIterator])->getY());
 						addPtrInMappedVector(current, (mapIterator->second[vecIterator]));
 						removePtrInMappedVector(old, (mapIterator->second[vecIterator]));
-						// because everything after will be shifted left, i need this to make sure that this captures the one that shifts to what used to be held by the actor ptr that was move
+						// because everything after will be shifted left, i need this to make sure that this captures the one that 
+						// shifts to what used to be the actor ptr that was moved
 						vecIterator--;
 					}
 				}
-				/*for (auto iter = mapIterator->second.begin(); iter != mapIterator->second.end(); iter++)
-				{
-					if (mapIterator->second[iter] == nullptr)
-					{
-
-						removePtrInMappedVector(old, vecIterator);
-					}
-				}
-				for (auto VecIterator : mapIterator->second)
-				{
-					if (mapIterator->second(vecIterator) == nullptr)
-					if (vecIterator == nullptr)
-						removePtrInMappedVector(old, vecIterator);
-				}*/
 			}
 			mapIterator++;
 		}
-		/*for (auto actorPtr : actorsToBeAdded) // delete this if I can confirm that actorPtr works fine
-		{
-			actorPtr->doSomething();
-			Coord current(actorPtr->getX(), actorPtr->getY());
-			addPtrInMappedVector(current, actorPtr);
-		}
-		actorsToBeAdded.clear();*/
 		for (auto actorPtr : actorMap[outOfBounds])
 		{
-			actorPtr->doSomething();
-			Coord current(actorPtr->getX(), actorPtr->getY());
-			addPtrInMappedVector(current, actorPtr);
+			if (!actorPtr->isDead()) // highly unlikely that anything would be dead if it were just created, but better safe than sorry
+			{
+				actorPtr->doSomething();
+				Coord current(actorPtr->getX(), actorPtr->getY());
+				addPtrInMappedVector(current, actorPtr);
+			}
 		}
 		actorMap[outOfBounds].clear();
 		removeDeadSimulationObjects();
@@ -253,26 +205,24 @@ int StudentWorld::move()
 	// the simulation is not yet over, continue!
 	return GWSTATUS_CONTINUE_GAME;
 	// after each any colony produces an ant, compare with all others to see which one has the most. so I should probably store that information somewhere...
+	// probably array? with function to figure things out
 }
 
 void StudentWorld::cleanUp()
 {
-	while (!actorMap.empty())
+	while (!actorMap.empty()) // keep going until all actor objects have been deleted
 	{
 		auto iter = actorMap.begin();
-		//auto vec = iter->second.begin();
 		while (!iter->second.empty())
 		{
-			Actor* ptr = iter->second.back();
-			delete ptr;
-			iter->second.pop_back();
+			Actor* ptr = iter->second.back(); // get pointer to last element
+			delete ptr; // delete it
+			iter->second.pop_back(); // remove it
 		}
 		actorMap.erase(iter);
 	}
-	//cerr << "Hello from cleanup" << endl;
 
-	//for (int i = m_numCompilers; i >= 0; i++) // let's hope this works
-	for (int i = 0; i < m_numCompilers; i++)
+	for (int i = 0; i < m_numCompilers; i++) // delete all compilers. better plan that deleting from ants or anthills
 	{
 		m_numCompilers--;
 		delete compilerArr[i];
@@ -285,33 +235,31 @@ bool StudentWorld::removePtrInMappedVector(Coord coordinates, Actor* act) // del
 {
 	auto beginIterator = actorMap[coordinates].begin();
 	auto endIterator = actorMap[coordinates].end();
-	auto foundIterator = find(beginIterator, endIterator, act);
-	if (foundIterator == endIterator)
+	auto foundIterator = find(beginIterator, endIterator, act); // try to find the actor pointer at the given coordinates
+	if (foundIterator == endIterator) // if it's not there, return false
 		return false;
-	else
+	else // otherwise, erase it and return true
 	{
 		actorMap[coordinates].erase(foundIterator);
-		//if (actorMap[coordinates].size() == 0)  // if addPtrInMappedVector is dumb, remove this. be aware that this will slow the game down over time if removed.
-		//	actorMap.erase(coordinates);
 		return true;
 	}
 }
 
+// used at the beginning of the game to take field items and place them in the proper locations in my data structure
 bool StudentWorld::identifyAndAllocate(Field::FieldItem item, Coord location, int colonyNum, Compiler* compiler)
 {
-	switch (item)
+	switch (item) // determine type of item
 	{
 	case (Field::empty): return true;
-	case (Field::anthill0):   // TODO: push_back ptr to anthill0
+	case (Field::anthill0):
 	case (Field::anthill1):
 	case (Field::anthill2):
 	case (Field::anthill3):
 	{
-		Actor* anty = new Anthill(location.getCol(), location.getRow(), this, compiler, colonyNum);
-		actorMap[location].push_back(anty);
+		Actor* anty = new Anthill(location.getCol(), location.getRow(), this, compiler, colonyNum); // construct new instance
+		actorMap[location].push_back(anty); // place it in data structure
 		return true;
 	}
-	// cases left to deal with: food, grasshopper, water, rock, poison
 	case (Field::food):
 	{
 		Actor* foodie = new Food(location.getCol(), location.getRow(), FOOD_SIZE_AT_START, this);
@@ -349,11 +297,11 @@ bool StudentWorld::identifyAndAllocate(Field::FieldItem item, Coord location, in
 	}
 }
 
-// need to pay attention to restrictions on adding things for pheromones and food
+// adds a new object to my data structure during the course of the game
 // default arguments are foodQuantity = 0, colonyNum = -1, compiler = nullptr
 void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantity, int colonyNum, Compiler* compiler)
 {
-	Coord outOfBounds; // but in a good way (I hope). sets location to (-1, -1)
+	Coord outOfBounds; // default constructs to (-1, -1). location where new actor objects will be temporarily held until move has gone through everything else
 	switch (thingID)
 	{
 	case (IID_PHEROMONE_TYPE0) :
@@ -362,23 +310,15 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 	case (IID_PHEROMONE_TYPE3) :
 	{
 		Actor* actorPtr = getPtrToThingAtCurrentSquare(thingID, location);
-		// need to check if there are others of the exact same type on the square
-		if (actorPtr == nullptr)  // should new Pheromones and new Adult Grasshoppers have the chance to move during the same turn during which they're created?
+		// need to check if there are others of the exact same type on the square. getPtr returns nullptr if there's already something.
+		if (actorPtr == nullptr)
 		{
 			Actor* newPheromonePtr = new Pheromone(thingID, location.getCol(), location.getRow(), this, thingID - IID_PHEROMONE_TYPE0);
-			// might want to uncomment the line below later... just depends on how I end up dealing with new things
-			//addPtrInMappedVector(location, newPheromonePtr); // adds to the back of the current mapped vector
-			//newPheromonePtr->doSomething(); // also might not be exactly right
-			//actorsToBeAdded.push_back(newPheromonePtr); // so i don't have to use this vector
-			//Coord outOfBounds; // but in a good way (I hope)
-			addPtrInMappedVector(outOfBounds, newPheromonePtr);
+			addPtrInMappedVector(outOfBounds, newPheromonePtr); // this will eventually be called by doSomething and then placed in the proper location
 		}
 		else
 		{
-			// dynamic cast the actor pointer to pheromone pointer
-			//Pheromone* pherPtr = dynamic_cast<Pheromone*> (actorPtr);
 			actorPtr->addHealth(256);
-			//pherPtr->addHealth(256);
 		}
 		return;
 	}
@@ -386,31 +326,22 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 	case (IID_FOOD) :
 	{
 		Actor* actorPtr = getPtrToThingAtCurrentSquare(thingID, location);
-		// need to check if there are others of the exact same type on the square
+		// only one food per square
 		if (actorPtr == nullptr)
 		{
 			Actor* newFoodPtr = new Food(location.getCol(), location.getRow(), foodQuantity, this);
-			//addPtrInMappedVector(location, newFoodPtr); // adds to the back of the current mapped vector
-			//newFoodPtr->doSomething();
-			//actorsToBeAdded.push_back(newFoodPtr);
 			addPtrInMappedVector(outOfBounds, newFoodPtr);
 		}
 		else
 		{
-			// dynamic cast the actor pointer to pheromone pointer
-			//Food* foodPtr = dynamic_cast<Food*> (actorPtr);
-			//foodPtr->addHealth(foodQuantity);
 			actorPtr->addHealth(foodQuantity);
 		}
 		return;
 	}
 
-	case (IID_ADULT_GRASSHOPPER):    // the deletion of the baby grasshopper will presumably get done before this.
+	case (IID_ADULT_GRASSHOPPER):  // will always add an adult grasshopper if this function is called and told to
 	{
 		Actor* hopsPtr = new AdultGrasshopper(location.getCol(), location.getRow(), this);
-		//addPtrInMappedVector(location, hopsPtr);
-		//hopsPtr->doSomething();
-		//actorsToBeAdded.push_back(hopsPtr);
 		addPtrInMappedVector(outOfBounds, hopsPtr);
 		return;
 	}
@@ -418,13 +349,10 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 	case (IID_ANT_TYPE0) : 
 	case (IID_ANT_TYPE1) :
 	case (IID_ANT_TYPE2) :
-	case (IID_ANT_TYPE3) : // complete this implementation very, very soon.
+	case (IID_ANT_TYPE3) :
 	{
-		// looks weird syntactically, but thingID is the same as colony number for ants
-		Actor* newAntPtr = new Ant(thingID, location.getCol(), location.getRow(), this, compiler, thingID);
-		// alternatively, added to first vector.
-		//newAntPtr->doSomething();
-		// update ant rankings and call anthill comparison thing
+		Actor* newAntPtr = new Ant(thingID, location.getCol(), location.getRow(), this, compiler, colonyNum);
+		// update ant count array and call anthill comparison thing
 		switch (thingID)
 		{
 		case (IID_ANT_TYPE0): m_ants[0]++; break;
@@ -432,7 +360,6 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		case (IID_ANT_TYPE2): m_ants[2]++; break;
 		case (IID_ANT_TYPE3): m_ants[3]++; break;
 		}
-		//actorsToBeAdded.push_back(newAntPtr);
 		addPtrInMappedVector(outOfBounds, newAntPtr);
 		return;
 	}
@@ -556,6 +483,29 @@ void StudentWorld::determineCurrentLeader()
 {
 	// this is not the correct implementation. but at least it compiles.
 	m_currentAnthillLeader = 0;
+	// naively rank. then compare with previous rankings to break ties.
+	// also keep in mind that the leader should have at least six ants.
+	/*bool hasAtLeastSixAnts = false;
+	for (int i = 0; i < m_numAnthills; i++)
+	{
+		if (m_ants[i] > 5)
+			hasAtLeastSixAnts = true;
+	}
+
+	if (!hasAtLeastSixAnts)
+	{
+		// do something to indicate there's no leader
+	}
+
+	for (int i = 0; i < m_numAnthills; i++)
+	{
+		for (int j = i; j < m_numAnthills; j++)
+		{
+			
+		}
+	}*/
+
+
 	/*if (m_ticksElapsed == 1)
 		return;
 	if (m_currentAnthillLeader == -1) // fix this. I'm stupid. the leader at this stage is whoever has more than 5 ants.
@@ -693,31 +643,101 @@ bool StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eate
 	}
 }
 
-Actor* StudentWorld::getPtrToThingAtCurrentSquare(int thingID, Coord location)
+bool StudentWorld::biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker)
 {
-	//map<Coord, vector<Actor*>>::iterator iter = actorMap.find(location);
-	//if (iter != actorMap.end())
-	//{
+	int numTargets = numberToBite(location, colonyNumber, attacker);
+	if (numTargets == 0)
+		return false;
+	else
+	{
+		int victim = randInt(0, numTargets - 1);
+		Actor* unlucky = getPtrToIthVictim(location, colonyNumber, attacker, victim);
+		if (unlucky == nullptr)
+			return false;
+		else
+		{
+			unlucky->reduceHP(damage);
+			if (!unlucky->isDead() && unlucky->canBite() && !unlucky->canBePoisoned())
+				unlucky->biteBack(); // if it's an adult grasshopper, I need to call bite back. weird. might get a big loop thing here.
+			return true;
+		}
+	}
+}
+
+int StudentWorld::numberToBite(Coord location, int colonyNumber, Actor* notThisGuy)
+{
+	int number = 0;
 	for (auto vecPtr : actorMap[location])
 	{
-		//if (vecPtr->getActorID() == thingID)
-		if (identifyByThingID(vecPtr) == thingID)
+		if (vecPtr->isAttackable(colonyNumber, notThisGuy))
+			number++;
+	}
+	Coord outOfBounds;
+	for (auto vecPtr : actorMap[outOfBounds])
+	{
+		if (vecPtr->getX() == location.getCol() && vecPtr->getY() == location.getRow())
 		{
-			return vecPtr;
+			if (vecPtr->isAttackable(colonyNumber, notThisGuy))
+				number++;
+		}
+	}
+	return number;
+}
+
+// returns nullptr if unsuccessful
+Actor* StudentWorld::getPtrToIthVictim(Coord location, int colonyNumber, Actor* notThisGuy, int victimNumber)
+{
+	int victimCounter = 0;
+	for (auto vecPtr : actorMap[location])
+	{
+		if (vecPtr->isAttackable(colonyNumber, notThisGuy))
+		{
+			if (victimCounter == victimNumber) // victimNumber ranges from 0 to n-1 number of targets
+				return vecPtr;
+			victimCounter++;
 		}
 	}
 	//}
 	Coord outOfBounds;
 	for (Actor* actorPtr : actorMap[outOfBounds])
 	{
-		if (identifyByThingID(actorPtr) == thingID)
+		if (actorPtr->getX() == location.getCol() && actorPtr->getY() == location.getRow())
 		{
-			return actorPtr;
+			if (actorPtr->isAttackable(colonyNumber, notThisGuy))
+			{
+				if (victimCounter == victimNumber) // victimNumber ranges from 0 to n-1 number of targets
+					return actorPtr;
+				victimCounter++;
+			}
 		}
 	}
 	return nullptr;
 }
 
+Actor* StudentWorld::getPtrToThingAtCurrentSquare(int thingID, Coord location)
+{
+	for (auto vecPtr : actorMap[location])
+	{
+		if (identifyByThingID(vecPtr) == thingID)
+		{
+			return vecPtr;
+		}
+	}
+	Coord outOfBounds;
+	for (Actor* actorPtr : actorMap[outOfBounds])
+	{
+		if (actorPtr->getX() == location.getCol() && actorPtr->getY() == location.getRow())
+		{
+			if (identifyByThingID(actorPtr) == thingID)
+			{
+				return actorPtr;
+			}
+		}
+	}
+	return nullptr;
+}
+
+// I realize this function is very slow so I try to minimize its use
 int StudentWorld::identifyByThingID (Actor* actor) const
 {
 	int thingID = -1;
@@ -759,14 +779,14 @@ int StudentWorld::identifyByThingID (Actor* actor) const
 	//	cerr << "Something went wrong with identify function" << "actorID: " << actor->getActorID() << "thingID: " << thingID << endl;
 	return thingID;
 }
-/*
+
 void StudentWorld::poisonAllAtCurrentSquare(Coord current)
 {
 	for (Actor* actorPtr : actorMap[current])
 	{
-		if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+		if (actorPtr->canBePoisoned())
 		{
-			actorPtr->bePoisoned();
+			actorPtr->reduceHP(150);
 		}
 	}
 	Coord outOfBounds;
@@ -774,9 +794,9 @@ void StudentWorld::poisonAllAtCurrentSquare(Coord current)
 	{
 		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
 		{
-			if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+			if (actorPtr->canBePoisoned())
 			{
-				actorPtr->bePoisoned();
+				actorPtr->reduceHP(150);
 			}
 		}
 	}
@@ -786,9 +806,10 @@ void StudentWorld::stunAllAtCurrentSquare(Coord current)
 {
 	for (Actor* actorPtr : actorMap[current])
 	{
-		if (actorPtr->canBeStunned() && !actorPtr->hasBeenAttackedHere(current))
+		if (actorPtr->canBeStunned() && actorPtr->canBeStunnedAtCurrentSquare(current)) // also updat last location stunned
 		{
-			actorPtr->bePoisoned();
+			actorPtr->addMovesInactive(2);
+			actorPtr->updateLastStunnedLocation(current);
 		}
 	}
 	Coord outOfBounds;
@@ -796,13 +817,14 @@ void StudentWorld::stunAllAtCurrentSquare(Coord current)
 	{
 		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
 		{
-			if (actorPtr->canBePoisoned() && !actorPtr->hasBeenAttackedHere(current))
+			if (actorPtr->canBeStunned() && actorPtr->canBeStunnedAtCurrentSquare(current))
 			{
-				actorPtr->bePoisoned();
+				actorPtr->addMovesInactive(2);
+				actorPtr->updateLastStunnedLocation(current);
 			}
 		}
 	}
-}*/
+}
 
 bool StudentWorld::pathBlocked(Coord location)
 {

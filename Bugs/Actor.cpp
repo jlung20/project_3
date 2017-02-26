@@ -1,7 +1,8 @@
 #include "Actor.h"
 #include "StudentWorld.h"
 #include "GraphObject.h"
-#include <iostream> // remove this after use
+//#include <iostream> // remove this after use
+#include <cstdlib>
 
 int Actor::getCurrentMove() const
 { 
@@ -133,7 +134,7 @@ bool Food::beEaten(int amount)
 }*/
 
 // returns if it's possible to move to a certain location
-bool Insect::canMove(Coord attemptedLocation)
+bool Insect::canMove(const Coord &attemptedLocation)
 {
 	//Actor* uselessPtr;
 	return !getPtrToWorld()->pathBlocked(attemptedLocation); // remove all of the things of this form. changed from identify actors at current square
@@ -141,7 +142,7 @@ bool Insect::canMove(Coord attemptedLocation)
 
 // the following move functions are pretty self-explanatory
 // it is worth noting, however, that these functions don't decrement number of moves
-// in a certain direction for grasshoppers and the like
+// in a certain direction
 bool Insect::moveInCurrentDirection()
 {
 	Direction currentDir = getDirection();
@@ -205,7 +206,7 @@ bool Insect::moveRight()
 		return false;
 }
 
-bool Insect::canBeStunnedAtCurrentSquare(Coord current) const
+bool Insect::canBeStunnedAtCurrentSquare(const Coord &current) const
 {
 	if (!(current == m_locationLastStunned)) // this branch checks where the insect was last stunned
 		return true; // if not at current location, return that it can be stunned
@@ -215,7 +216,7 @@ bool Insect::canBeStunnedAtCurrentSquare(Coord current) const
 
 // returns false if dead and should doSomething should stop. else, returns true.
 // may not need this.
-bool Grasshopper::manageHealth()
+bool Grasshopper::manageHealth() // move this to EnergeticActor
 {
 	decrementHP();
 	if (getHealth() <= 0)
@@ -226,50 +227,214 @@ bool Grasshopper::manageHealth()
 	return true;
 }
 
-bool Insect::manageSleepAndStun()
+bool Insect::manageDamage()
 {
-	/*if (hasDoneSomething())
-	{
-		return false;
-	}*/
-	if (isInactive())
+	if (getMovesInactive() > 0)
 	{
 		decrementMovesInactive();
-		//decrementMovesStunnedAndAsleep();
-		return true;
+		return false;
 	}
 	else
-		return false;
+		return true;
 }
 
 // so the format above suggests that I should have a pure virtual isStunned common among the insect class
 // should ants and adult grasshoppers inherit from baby grasshoppers?
 
+bool BabyGrasshopper::doAdultOrImmatureThings()
+{
+	return evolve();
+}
 
-// HEY CHECK THAT IT'S NOT STUCK TOO LONG AGAINST WALLS!
+// returns true if it evolves
+bool BabyGrasshopper::evolve()
+{
+	if (getHealth() >= 1600)
+	{
+		reduceHP(9000); // effectively sets baby grasshopper to dead.
+		die();
+		Coord currentLocation(getX(), getY());
+		getPtrToWorld()->addNewDuringGame(IID_ADULT_GRASSHOPPER, currentLocation); // add adult grasshopper to map
+		return true;
+	}
+	return false;
+}
+
+bool AdultGrasshopper::doAdultOrImmatureThings()
+{
+	Coord location(getX(), getY());
+	if (attackEnemy(getColonyNumber(), location, 50))
+		return true;
+	else
+		return fly();
+}
+
+bool AdultGrasshopper::fly()
+{
+	if (randInt(0, 9) == 0)
+	{
+		int numPossibleSquares = findNumberOfOpenSquares();
+		if (numPossibleSquares == 0)
+			return false;
+		else
+		{
+			int squareNum = randInt(0, numPossibleSquares - 1);
+			Coord toJump = findNthOpenSquare(squareNum);
+			Coord outOfBounds;
+			if (toJump == outOfBounds)
+				return false;
+			else
+			{
+				moveTo(toJump.getCol(), toJump.getRow());
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// n ranges from 0 to n-1 where n is number of open squares around
+// returns out of bounds coordinate if it can't find the nth open square
+Coord AdultGrasshopper::findNthOpenSquare(int n)
+{
+	int spaceCount = 0;
+	for (int sum = 10; sum >= 0; sum--) // amounts to radius of circle
+	{
+		for (int movesX = -sum; movesX <= sum; movesX++) // distance along x
+		{
+			int posmovesY = sum - abs(movesX); // distance above y
+			Coord xOne(getX() + movesX, getY() + posmovesY);
+			if (isValidSquare(xOne) && !getPtrToWorld()->pathBlocked(xOne))
+			{
+				if (spaceCount == n)
+					return xOne;
+				spaceCount++;
+			}
+			int negmovesY = -sum + abs(movesX); // distance below y
+			Coord xTwo(getX() + movesX, getY() + negmovesY);
+			if (isValidSquare(xTwo) && !getPtrToWorld()->pathBlocked(xTwo))
+			{
+				if (spaceCount == n)
+					return xTwo;
+				spaceCount++;
+			}
+		}
+	}
+	Coord outOfBounds;
+	return outOfBounds;
+}
+
+int AdultGrasshopper::findNumberOfOpenSquares()
+{
+	int openSpaceCount = 0;
+	for (int sum = 10; sum >= 0; sum--) // amounts to radius of circle
+	{
+		for (int movesX = -sum; movesX <= sum; movesX++) // distance along x
+		{
+			int posmovesY = sum - abs(movesX); // distance above y
+			Coord xOne(getX() + movesX, getY() + posmovesY);
+			if (isValidSquare(xOne) && !getPtrToWorld()->pathBlocked(xOne))
+				openSpaceCount++;
+			int negmovesY = -sum + abs(movesX); // distance below y
+			Coord xTwo(getX() + movesX, getY() + negmovesY);
+			if (isValidSquare(xTwo) && !getPtrToWorld()->pathBlocked(xTwo))
+				openSpaceCount++;
+		}
+	}
+	return openSpaceCount;
+}
+
+bool AdultGrasshopper::isValidSquare(Coord square)
+{
+	int x = square.getCol(), y = square.getRow();
+	return x >= 0 && x < VIEW_WIDTH && y >= 0 && y < VIEW_HEIGHT;
+}
+
+void AdultGrasshopper::biteBack()
+{
+	if (randInt(0, 1))
+	{
+		Coord current(getX(), getY());
+		attackEnemy(getColonyNumber(), current, 50);  // need to add info on where it is.
+	}
+}
+
+void Insect::updatePreviousLocation()
+{
+	Coord newLocation(getX(), getY());
+	m_previousLocation = newLocation;
+}
+
+void Insect::updateLastStunnedLocation(const Coord &newStunLocation)
+{
+	m_locationLastStunned = newStunLocation;
+	// not sure if this is safe, but it ensures that the function that checks for if an insect can be stunned will return false
+	m_previousLocation = newStunLocation;
+}
+
+// also it seems like there's some issue with isDead()
+// fix function below.
+
+bool Insect::isAttackable(int colonyNumber, Actor* self)
+{
+	if (isDead())
+		return false;
+	else if (self == this)
+		return false;
+	else if (getColonyNumber() == -1)
+		return true;
+	else
+		return colonyNumber != getColonyNumber(); 
+}
+
+// returns true if it attacks an enemy. otherwise, returns false. 
+// make sure that baby grasshoppers never call this.
+bool Insect::attackEnemy(int colonyNumber, Coord location, int damage)
+{
+	return getPtrToWorld()->biteEnemy(colonyNumber, location, damage, this);
+}
+
+// HEY! ADULT GRASSHOPPERS NEED A BITE BACK FUNCTION! so in StudentWorld function that does damage, if it's an adult grasshopper that gets bitten, it needs to respond.
 
 // need evolve function
 // performs the baby grasshopper's specified actions
-void BabyGrasshopper::doSomething()
+void Grasshopper::doSomething() // move a lot of this to Grasshopper
 {
 	/*incrementTimesCalled();
 	numberTimesCalled();*/
-	/*decrementHP();
-	if (getHealth() <= 0) // in my implementation, it's not necessary to do anything special to check if it's dead (handled by isDead fn)
+	Coord currentLocation(getX(), getY());
+	updatePreviousLocation(); // should maybe get put in insect's doSomething
+	if (!manageHealth()) // if it returns false, doSomething should also return.
+		return;
+	else if (!manageDamage())
+		return;
+	else if (doAdultOrImmatureThings()) // adult grasshoppers and ants need findEnemy(int colonyNumber, int location). used to be evolve
 	{
-		Coord currentLocation(this->getX(), this->getY());
-		getPtrToWorld()->addNewDuringGame(IID_FOOD, currentLocation, 100); // add food to map
+		if (!isDead())
+			goToSleep();
 		return;
-	}*/
-	if (!manageHealth())
-		return;
+	}
+	else if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) && randInt(0, 1))
+	{                                        // split things up into void performMovement
+		/*goToSleep();
+		return;*/
+		// should go straight to the end
+	}
+	else if (areWeThereYet()) // checks if there's no more distance to travel
+	{
+		addMoreDistance();
+		setDirection(getRandomDirection()); //this is how it should ultimately be implemented. the line below is purely for testing.
+	}											//setDirection(up);
+	else if (!moveInCurrentDirection())
+		doneTraveling();
 	else
-	{
-		if (getMovesInactive() > 0)
+		oneStepCloser();
+	goToSleep();
+		/*if (getMovesInactive() > 0)
 		{
 			decrementMovesInactive();
 			return;
-		}/*
+		}
 		if (isStunned())
 		{
 			decrementMovesStunned();
@@ -280,36 +445,6 @@ void BabyGrasshopper::doSomething()
 			decrementMovesAsleep();
 			return;
 		}*/
-		else if (getHealth() >= 1600)
-		{
-			reduceHP(9000); // not pretty, but it gets the job done. effectively sets baby grasshopper to dead.
-			Coord currentLocation(this->getX(), this->getY());
-			getPtrToWorld()->addNewDuringGame(IID_FOOD, currentLocation, 100); // add food to map
-			getPtrToWorld()->addNewDuringGame(IID_ADULT_GRASSHOPPER, currentLocation); // add adult grasshopper to map
-			return;
-		}
-		Coord currentLocation(this->getX(), this->getY());
-		if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) && randInt (0, 1))
-		{
-			goToSleep();
-			return;
-		}
-		else
-		{
-			if (areWeThereYet())
-			{
-				addMoreDistance();
-				setDirection(getRandomDirection()); //this is how it should ultimately be implemented. the line below is purely for testing.
-				//setDirection(up);
-			}
-
-			if (!moveInCurrentDirection())
-				doneTraveling();
-			else
-				oneStepCloser();
-		}
-		goToSleep();
-	}
 }
 
 void Poison::attackAllActorsAtCurrentSquare()
@@ -323,5 +458,3 @@ void WaterPool::attackAllActorsAtCurrentSquare()
 	Coord current(getX(), getY());
 	getPtrToWorld()->stunAllAtCurrentSquare(current);
 }
-
-// for other side, have record of where it last was and where it was last stunned
