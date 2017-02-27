@@ -27,11 +27,8 @@ public:
 	}
 
 	virtual int init();
-
 	virtual int move();
-
 	virtual void cleanUp();
-
 	int getTicksElapsed() const { return m_ticksElapsed; }
 
 	// add a function for when stuff dies!!!
@@ -53,13 +50,18 @@ public:
 	// takes thingID and matches it based on properties of the actor
 	int StudentWorld::identifyByThingID(Actor* actor) const;
 
-	void stunAllAtCurrentSquare(Coord current);
+	//void stunAllAtCurrentSquare(Coord current);
 
-	void poisonAllAtCurrentSquare(Coord current);
+	//void poisonAllAtCurrentSquare(Coord current);
+	void attackAllAtCurrentSquare(Coord current, char ch);
 
 	bool biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker); // need to check outOfBounds as well.
 	
 	bool pathBlocked(Coord location);
+
+	bool dangerAhead(Coord location, int colonyNumber, Actor::Direction dir);
+
+	bool pheromoneAhead(Coord location, int colonyNumber, Actor::Direction dir);
 
 	~StudentWorld() {
 		//std::cerr << "Hello from destructor. Is this called before or after cleanUp()?" << std::endl;
@@ -78,6 +80,7 @@ private:
 	Compiler* compilerArr[4]; // this strange thing is here so that the compilers will only get deleted once
 	int m_numCompilers;
 	void determineCurrentLeader(); //maybe try again later. just a stub RN!!! sets player 0 as leader.
+	//void sortHighScores(int *highScores, int numHighScores);
 	void setAnthillNames();
 	std::string getWinningAntName();
 	std::map<Coord, std::vector<Actor*>> actorMap;   // virtual map of locations of things in world
@@ -109,13 +112,12 @@ private:
 
 	std::string formatBetter(int ticks, int antOne, int antTwo, int antThree, int antFour, int leadingAnt);
 
-	//int howManyAreThereAtCurrentSquare(int thingID, Coord location, Actor* &actorPtr);
-
 	// returns pointer to the first actor of the proper type or nullptr if no such actor is found within the vector mapped from a certain key
 	Actor* getPtrToThingAtCurrentSquare(int thingID, Coord location);
 
 	Actor* getPtrToIthVictim(Coord location, int colonyNumber, Actor* notThisGuy, int victimNumber);
-	// void poison(); ADD THIS LATER PERHAPS? NOT SURE IF NECESSARY
+
+	bool updateLocation(Coord &location, Actor::Direction dir);
 
 	// also need a function that checks if there's anything mapped to (-1, -1) that's actually somewhere of interest.
 };

@@ -26,6 +26,16 @@ bool operator == (const Coord& first, const Coord& second) // this was also a ve
 	return (first.getCol() == second.getCol()) && (first.getRow() == second.getRow());
 }
 
+bool isValidPos(const Coord location)
+{
+	if (location.getCol() < 0 || location.getCol() > VIEW_WIDTH)
+		return false;
+	else if ((location.getRow() < 0 || location.getRow() > VIEW_HEIGHT))
+		return false;
+	else
+		return true;
+}
+
 int StudentWorld::init()
 {
 	int anthillCount = 0;
@@ -154,6 +164,14 @@ int StudentWorld::move()
 		{
 			if (!mapIterator->second.empty())
 			{
+				for (size_t vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++)
+				{
+					if (mapIterator->second[vecIterator]->canStun())
+					{
+						(mapIterator->second[vecIterator])->doSomething();
+						(mapIterator->second[vecIterator])->updateLastMove(m_ticksElapsed);
+					}
+				}
 				// iterating through like a normal array because iterators would get messed up otherwise
 				for (size_t vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++)
 				{
@@ -190,8 +208,7 @@ int StudentWorld::move()
 		removeDeadSimulationObjects();
 	}
 	setDisplayText();
-	determineCurrentLeader();
-	//determineCurrentLeader() is not properly implemented at this point. fix later.
+	//determineCurrentLeader();
 	if (m_ticksElapsed == 2000)
 	{
 		if (m_currentAnthillLeader != -1)
@@ -318,7 +335,7 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		}
 		else
 		{
-			actorPtr->addHealth(256);
+			actorPtr->addHealth(256); // adds as much strength to pheromone as possible, up to 256
 		}
 		return;
 	}
@@ -329,8 +346,11 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		// only one food per square
 		if (actorPtr == nullptr)
 		{
-			Actor* newFoodPtr = new Food(location.getCol(), location.getRow(), foodQuantity, this);
-			addPtrInMappedVector(outOfBounds, newFoodPtr);
+			if (foodQuantity > 0)
+			{
+				Actor* newFoodPtr = new Food(location.getCol(), location.getRow(), foodQuantity, this);
+				addPtrInMappedVector(outOfBounds, newFoodPtr);
+			}
 		}
 		else
 		{
@@ -368,7 +388,6 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 	}
 }
 
-// fix this junk.
 int StudentWorld::howManyAreThereAtCurrentSquare(int thingID, Coord location)
 {
 	int thingCount = 0;
@@ -378,9 +397,10 @@ int StudentWorld::howManyAreThereAtCurrentSquare(int thingID, Coord location)
 	{
 		for (auto vecPtr : actorMap[outOfBounds])
 		{
-			if (identifyByThingID(vecPtr) == thingID)
+			if (vecPtr->getX() == location.getCol() && vecPtr->getY() == location.getRow())
 			{
-				thingCount++;
+				if (identifyByThingID(vecPtr) == thingID)
+					thingCount++;
 			}
 		}
 	}
@@ -389,7 +409,6 @@ int StudentWorld::howManyAreThereAtCurrentSquare(int thingID, Coord location)
 	{
 		for (auto vecPtr : iter->second)
 		{
-			//if (vecPtr->getActorID() == thingID)
 			if (identifyByThingID(vecPtr) == thingID)
 			{
 				thingCount++;
@@ -399,41 +418,65 @@ int StudentWorld::howManyAreThereAtCurrentSquare(int thingID, Coord location)
 	return thingCount;
 }
 
-/*int StudentWorld::howManyAreThereAtCurrentSquare(int thingID, Coord location, Actor* &actorPtr)
+// looks one square over in the direction indicated by dir and evaluates if 
+// there are enemies at that square
+bool StudentWorld::dangerAhead(Coord location, int colonyNumber, Actor::Direction dir)
 {
-	int thingCount = 0;
-	// need to check (-1, -1) for something that is secretly, but only very temporarily not mapped at the correct location
-	Coord outOfBounds; // refer to notes earlier about what this means
-	if (!actorMap[outOfBounds].empty())
+	if (!updateLocation(location, dir))
+		return false;
+	for (Actor* actor : actorMap[location])
 	{
-		for (auto vecPtr : actorMap[outOfBounds])
-		{
-			if (identifyByThingID(vecPtr) == thingID)
-			{
-				thingCount++;
-				if (thingCount == 1)
-					actorPtr = vecPtr;
-			}
-		}
+		if (actor->isAttackable(colonyNumber)) // if it's attackable, then it's an insect, but not an ant of the same colony
+			return true;
+		if (actor->canPoison())
+			return true;
 	}
-	map<Coord, vector<Actor*>>::iterator iter = actorMap.find(location);
-	if (iter != actorMap.end())
+	return false; // if the previous loop didn't return true, there must not be danger, so return false
+}
+
+// looks one square over in the direction indicated by dir and evaluates if 
+// there are pheromones from the same colony at that square
+bool StudentWorld::pheromoneAhead(Coord location, int colonyNumber, Actor::Direction dir)
+{
+	if (!updateLocation(location, dir))
+		return false;
+	for (Actor* actor : actorMap[location])
 	{
-		for (auto vecPtr : iter->second)
-		{
-			//if (vecPtr->getActorID() == thingID)
-			if (identifyByThingID(vecPtr) == thingID)
-			{
-				thingCount++;
-				if (thingCount == 1)
-					actorPtr = vecPtr;
-			}
-		}
+		if (actor->getColonyNumber() == colonyNumber && !actor->canEat())
+			return true;
 	}
-	if (thingCount == 0)
-		actorPtr = nullptr;
-	return thingCount;
-}*/
+	return false;
+}
+
+// returns true if it's a valid location, otherwise returns false
+bool StudentWorld::updateLocation(Coord &location, Actor::Direction dir)
+{
+	switch (dir)
+	{
+	case Actor::up:
+		location.setRow(location.getRow() + 1);
+		if (!isValidPos(location)) // if it's not a valid location, there's no chance that there would be an enemy there
+			return false;
+		break;
+	case Actor::down:
+		location.setRow(location.getRow() - 1);
+		if (!isValidPos(location)) // if it's not a valid location, there's no chance that there would be an enemy there
+			return false;
+		break;
+	case Actor::left:
+		location.setCol(location.getCol() - 1);
+		if (!isValidPos(location)) // if it's not a valid location, there's no chance that there would be an enemy there
+			return false;
+		break;
+	case Actor::right:
+		location.setCol(location.getCol() - 1);
+		if (!isValidPos(location)) // if it's not a valid location, there's no chance that there would be an enemy there
+			return false;
+		break;
+	default: {return false; }
+	}
+	return true;
+}
 
 void StudentWorld::removeDeadSimulationObjects()
 {
@@ -441,31 +484,13 @@ void StudentWorld::removeDeadSimulationObjects()
 	{
 		for (auto coordIterator = actorMap.begin(); coordIterator != actorMap.end(); coordIterator++)
 		{
-			if (coordIterator->second.empty())
+			if (!coordIterator->second.empty())
 			{
-				// do nothing
-			}
-			else
-			{
-				//auto vecIterator = coordIterator->second;
-
-				//for (auto vecIterator = coordIterator->second.begin(); vecIterator != coordIterator->second.begin();) 
-				// this implementation will require some more work later. aka NOW!!! Is it better?
 				for (size_t i = 0; i < coordIterator->second.size(); i++)
 				{
 					Actor *current = coordIterator->second[i];
 					if (current->isDead())
 					{
-						int actorType = identifyByThingID(current);
-						if (actorType == IID_ANT_TYPE0) // if it's an ant, then you'd better decrement ant count for the right anthill
-							m_ants[0]--;
-						else if (actorType == IID_ANT_TYPE1)
-							m_ants[1]--;
-						else if (actorType == IID_ANT_TYPE2)
-							m_ants[2]--;
-						else if (actorType == IID_ANT_TYPE3)
-							m_ants[3]--;
-
 						Coord toDelete(current->getX(), current->getY());
 						removePtrInMappedVector(toDelete, current);
 						i--; // since it's a vector and you're deleting stuff, there shouldn't be an issue with reallocation. at least i hope.
@@ -477,76 +502,52 @@ void StudentWorld::removeDeadSimulationObjects()
 	}
 }
 
-// maybe it would be better to determine current leader some other way
-// needs to be called every time an ant is generated or dies.
+// needs to be called every time an ant is generated
 void StudentWorld::determineCurrentLeader()
 {
-	// this is not the correct implementation. but at least it compiles.
-	m_currentAnthillLeader = 0;
-	// naively rank. then compare with previous rankings to break ties.
-	// also keep in mind that the leader should have at least six ants.
-	/*bool hasAtLeastSixAnts = false;
+	int lowScores[4], numLowScores = 0; // array holds the anthill numbers for those with low scores
+	int highScores[4], numHighScores = 0; // array holds the anthill numbers for those with high scores
 	for (int i = 0; i < m_numAnthills; i++)
 	{
-		if (m_ants[i] > 5)
-			hasAtLeastSixAnts = true;
-	}
-
-	if (!hasAtLeastSixAnts)
-	{
-		// do something to indicate there's no leader
-	}
-
-	for (int i = 0; i < m_numAnthills; i++)
-	{
-		for (int j = i; j < m_numAnthills; j++)
+		if (m_ants[i] <= 5) // an anthill can't even be considered for being the leader if it has fewer than 6 ants
 		{
-			
+			lowScores[numLowScores] = i;
+			numLowScores++;
 		}
-	}*/
-
-
-	/*if (m_ticksElapsed == 1)
-		return;
-	if (m_currentAnthillLeader == -1) // fix this. I'm stupid. the leader at this stage is whoever has more than 5 ants.
-	{
-		int maxAnts = m_ants[0];
-		int leader = 0;
-		for (int i = 1; i < m_numAnthills; i++)
+		else
 		{
-			if (m_ants[i] > maxAnts)
-			{
-				maxAnts = m_ants[i];
-				leader = i;
-			}
-		}
-		bool isGreatest = true;
-		for (int i = 0; i < m_numAnthills; i++)
-		{
-			if (i != leader)
-			{
-				if (m_ants[i] == maxAnts)
-				{
-					isGreatest = false;
-					break;
-				}
-			}
-		}
-		if (isGreatest)
-		{
-			m_currentAnthillLeader = leader;
+			highScores[numHighScores] = i;
+			numHighScores++;
 		}
 	}
+
+	if (numLowScores == 4) // no leader if none have at least six ants
+		m_currentAnthillLeader = -1;
 	else
 	{
-		for (int i = 0; i < m_numAnthills; i++) // well darn. what if something goes down...
+		if (m_currentAnthillLeader != -1)
 		{
-			if (m_ants[i] > m_ants[m_currentAnthillLeader])
+			bool previousLeaderStillLeads = true;
+			for (int i = 0; i < numHighScores; i++)
 			{
-				m_currentAnthillLeader = i;
+				if (m_ants[highScores[i]] > m_ants[m_currentAnthillLeader])
+					previousLeaderStillLeads = false;
+			}
+			if (previousLeaderStillLeads) // if the previous leader still leads, there's nothing more to do
+				return;
+		}
+		int maxAnts = m_ants[highScores[0]];
+		int leadingAnthill = highScores[0];
+		for (int i = 0; i < numHighScores; i++) // otherwise, go through the set of high scores to find the new leader
+		{
+			if (m_ants[highScores[i]] > maxAnts)
+			{
+				maxAnts = m_ants[highScores[i]];
+				leadingAnthill = highScores[i];
 			}
 		}
-	}*/
+		m_currentAnthillLeader = leadingAnthill;
+	}
 }
 
 void StudentWorld::setAnthillNames()
@@ -645,25 +646,27 @@ bool StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eate
 
 bool StudentWorld::biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker)
 {
-	int numTargets = numberToBite(location, colonyNumber, attacker);
-	if (numTargets == 0)
+	int numTargets = numberToBite(location, colonyNumber, attacker); // determines number that can be bitten
+	if (numTargets == 0) // don't try to bite anything if there aren't any targets
 		return false;
 	else
 	{
-		int victim = randInt(0, numTargets - 1);
-		Actor* unlucky = getPtrToIthVictim(location, colonyNumber, attacker, victim);
+		int victim = randInt(0, numTargets - 1); // determine random victim
+		Actor* unlucky = getPtrToIthVictim(location, colonyNumber, attacker, victim); // locate that victim
 		if (unlucky == nullptr)
 			return false;
 		else
 		{
-			unlucky->reduceHP(damage);
-			if (!unlucky->isDead() && unlucky->canBite() && !unlucky->canBePoisoned())
-				unlucky->biteBack(); // if it's an adult grasshopper, I need to call bite back. weird. might get a big loop thing here.
+			unlucky->reduceHP(damage); // bite that victim
+			if (!unlucky->isDead() && unlucky->isAttackable(-1, nullptr) && !unlucky->canBeStunnedOrPoisoned())
+				unlucky->biteBack(); // if it's an adult grasshopper, I need to call bite back.
+			unlucky->setBitten(); // doesn't do anything unless it's an ant
 			return true;
 		}
 	}
 }
 
+// returns number of insects at a given square that can be bitten
 int StudentWorld::numberToBite(Coord location, int colonyNumber, Actor* notThisGuy)
 {
 	int number = 0;
@@ -685,6 +688,7 @@ int StudentWorld::numberToBite(Coord location, int colonyNumber, Actor* notThisG
 }
 
 // returns nullptr if unsuccessful
+// used by bite enemy to have access to a particular victim
 Actor* StudentWorld::getPtrToIthVictim(Coord location, int colonyNumber, Actor* notThisGuy, int victimNumber)
 {
 	int victimCounter = 0;
@@ -714,16 +718,20 @@ Actor* StudentWorld::getPtrToIthVictim(Coord location, int colonyNumber, Actor* 
 	return nullptr;
 }
 
+// returns a pointer to the first thing 
 Actor* StudentWorld::getPtrToThingAtCurrentSquare(int thingID, Coord location)
 {
+	if (!isValidPos(location))
+		return nullptr;
 	for (auto vecPtr : actorMap[location])
 	{
-		if (identifyByThingID(vecPtr) == thingID)
+		if (identifyByThingID(vecPtr) == thingID) // does it match?
 		{
-			return vecPtr;
+			return vecPtr; // if so, return a pointer to it
 		}
 	}
-	Coord outOfBounds;
+	Coord outOfBounds; 
+	// do the same thing for actors that might temporarily not be in the proper location in the virtual map
 	for (Actor* actorPtr : actorMap[outOfBounds])
 	{
 		if (actorPtr->getX() == location.getCol() && actorPtr->getY() == location.getRow())
@@ -738,6 +746,7 @@ Actor* StudentWorld::getPtrToThingAtCurrentSquare(int thingID, Coord location)
 }
 
 // I realize this function is very slow so I try to minimize its use
+// identifies what a thing is by its characteristics
 int StudentWorld::identifyByThingID (Actor* actor) const
 {
 	int thingID = -1;
@@ -751,83 +760,60 @@ int StudentWorld::identifyByThingID (Actor* actor) const
 		thingID = IID_WATER_POOL;
 	else if (actor->canFly())
 		thingID = IID_ADULT_GRASSHOPPER;
-	else if (actor->canEat() && !actor->canBePoisoned()) // I might need to do more in another function to find out whose anthill it is
-		thingID = IID_ANT_HILL;
+	else if (actor->canEat() && !actor->canBeStunnedOrPoisoned())
+		thingID = IID_ANT_HILL; // need to do more if you want to determine which colony's anthill it is
 	else if (actor->getColonyNumber() == -1)
 		thingID = IID_BABY_GRASSHOPPER;
-	else if (actor->canBeStunned())
-		thingID = actor->getColonyNumber(); // means it's an ant
-	else if (!actor->canBePoisoned())
+	else if (actor->canBeStunnedOrPoisoned())
+		thingID = actor->getColonyNumber(); // means it's an ant. can determine type by what colony number returns
+	else if (!actor->canBeStunnedOrPoisoned())
 		thingID = actor->getColonyNumber() + IID_PHEROMONE_TYPE0; // for various types of pheromones
-		/*const int IID_ANT_TYPE0 = 0;	// up to four different competitor colonies
-	const int IID_ANT_TYPE1 = 1;
-	const int IID_ANT_TYPE2 = 2;
-	const int IID_ANT_TYPE3 = 3;
-	-const int IID_ANT_HILL = 4;
-	-const int IID_POISON = 5;
-	-const int IID_FOOD = 6;
-	-const int IID_WATER_POOL = 7;
-	-const int IID_ROCK = 8;
-	-const int IID_BABY_GRASSHOPPER = 9;
-	-const int IID_ADULT_GRASSHOPPER = 10;
-	const int IID_PHEROMONE_TYPE0 = 11;
-	const int IID_PHEROMONE_TYPE1 = 12;
-	const int IID_PHEROMONE_TYPE2 = 13;
-	const int IID_PHEROMONE_TYPE3 = 14;*/
-	// have a check for it returning -1 so I know that something went wrong.
-	//if (actor->getActorID() != thingID)
-	//	cerr << "Something went wrong with identify function" << "actorID: " << actor->getActorID() << "thingID: " << thingID << endl;
 	return thingID;
 }
 
-void StudentWorld::poisonAllAtCurrentSquare(Coord current)
+// poisons all at current square.
+void StudentWorld::attackAllAtCurrentSquare(Coord current, char ch)
 {
+	if (!isValidPos(current))
+		return;
 	for (Actor* actorPtr : actorMap[current])
 	{
-		if (actorPtr->canBePoisoned())
+		if (actorPtr->canBeStunnedOrPoisoned()) // if it can be poisoned,
 		{
-			actorPtr->reduceHP(150);
+			if (ch == 'p')
+				actorPtr->reduceHP(150); // do 150 damage separate this into a separate function
+			else
+			{
+				actorPtr->addMovesInactive(2); // stun
+				actorPtr->updateLastStunnedLocation(current); // indicate where actor has last been stunned
+			} 
 		}
 	}
 	Coord outOfBounds;
+	// do the same for "out of bounds" area of map
 	for (Actor* actorPtr : actorMap[outOfBounds])
 	{
 		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
 		{
-			if (actorPtr->canBePoisoned())
+			if (actorPtr->canBeStunnedOrPoisoned())
 			{
-				actorPtr->reduceHP(150);
+				if (ch == 'p')
+					actorPtr->reduceHP(150); // do 150 damage separate this into a separate function
+				else
+				{
+					actorPtr->addMovesInactive(2); // stun
+					actorPtr->updateLastStunnedLocation(current); // indicate where actor has last been stunned
+				}
 			}
 		}
 	}
 }
 
-void StudentWorld::stunAllAtCurrentSquare(Coord current)
-{
-	for (Actor* actorPtr : actorMap[current])
-	{
-		if (actorPtr->canBeStunned() && actorPtr->canBeStunnedAtCurrentSquare(current)) // also updat last location stunned
-		{
-			actorPtr->addMovesInactive(2);
-			actorPtr->updateLastStunnedLocation(current);
-		}
-	}
-	Coord outOfBounds;
-	for (Actor* actorPtr : actorMap[outOfBounds])
-	{
-		if (actorPtr->getX() == current.getCol() && actorPtr->getY() == current.getRow())
-		{
-			if (actorPtr->canBeStunned() && actorPtr->canBeStunnedAtCurrentSquare(current))
-			{
-				actorPtr->addMovesInactive(2);
-				actorPtr->updateLastStunnedLocation(current);
-			}
-		}
-	}
-}
-
+// quickly determines if an actor can move to a given square
 bool StudentWorld::pathBlocked(Coord location)
 {
+	if (!isValidPos(location))
+		return false;
 	for (Actor* maybeRocky : actorMap[location])
 	{
 		if (maybeRocky->canBlockPath())
@@ -835,5 +821,3 @@ bool StudentWorld::pathBlocked(Coord location)
 	}
 	return false;
 }
-
-// make sure that implementation of pheromone constructor makes sense

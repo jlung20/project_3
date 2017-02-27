@@ -1,6 +1,8 @@
 #include "Actor.h"
 #include "StudentWorld.h"
 #include "GraphObject.h"
+#include "Compiler.h"
+#include <string>
 //#include <iostream> // remove this after use
 #include <cstdlib>
 
@@ -8,25 +10,10 @@ int Actor::getCurrentMove() const
 { 
 	return ptrToWorld->getTicksElapsed(); 
 }
-/*
-// need to have this in the base class because ptrToWorld is a private member of Actor
-// intended for ants and grasshoppers
-// should not exist
-bool Actor::die()
-{
-	if (!isDead())
-		return false;
-	else
-	{
-		Coord currentLocation(this->getX(), this->getY());
-		ptrToWorld->addNewDuringGame(IID_FOOD, currentLocation, 100); // add food to map
-		return true;
-	}
-}
-bool EnergeticActor::die() // everything that has energy
-{ 
-	return isDead(); 
-}*/
+
+
+// HEY! ADD COMMENTS!!!
+
 
 bool Insect::die() // all insects
 {
@@ -40,50 +27,6 @@ bool Insect::die() // all insects
 	}
 }
 
-/*bool ImmortalActor::die() // pebble, poison, water pool
-{
-	return false;
-}
-
-bool SuperAnt::die()
-{
-	if (!canBePoisoned()) // pheromone and anthill
-		return EnergeticActor::die();
-	else // ant
-		return Insect::die();
-}*/
-
-/*// should only be called if it is dead and can die. if it can't, return false.
-bool Insect::die() // wait should this be a thing?
-{
-	if (!hasEnergyOrHealth() || !isDead()) // something should only die if it's dead
-		return false;
-	else
-	{
-		reduceHP(9000);
-		if (!canEat()) // pheromone
-			return true;
-		else if (!canBePoisoned()) // anthill
-			return true;
-		else
-		{
-
-			return true; // not totally correct at this point, but oh well.
-			// add Food to square
-		}
-	}
-}*/
-
-/*void Actor::numberTimesCalled() // delete this after confirming that everything works properly.
-{
-	if (getCurrentMove() != m_timesCalled)
-	{
-		std::cerr << "IMAGE ID: " << getActorID() << std::endl;
-		std::cerr << "Ticks elapsed: " << getCurrentMove() << std::endl;
-		std::cerr << "DoSomething calls: " << m_timesCalled << std::endl;
-	}
-}*/
-
 // adds amount to HP unless there is a limit, in which case it only
 void EnergeticActor::addHealth(int amount) {
 	if (isDead() && canEat()) // for the case that it's a dead anthill or grasshopper or ant so they can't revive
@@ -94,10 +37,12 @@ void EnergeticActor::addHealth(int amount) {
 			m_healthPoints += amount;
 		else
 		{
-			int maxToAdd = m_maxLimit - amount;
+			int maxToAdd = m_maxLimit - m_healthPoints;
+			amount < maxToAdd ? m_healthPoints += amount : m_healthPoints += maxToAdd;
+			/*int maxToAdd = m_maxLimit - amount;
 			if (maxToAdd < 0)
 				maxToAdd = 0;
-			amount < maxToAdd ? m_healthPoints += amount : m_healthPoints += maxToAdd;
+			amount < maxToAdd ? m_healthPoints += amount : m_healthPoints += maxToAdd;*/
 		}
 	}
 }
@@ -117,6 +62,21 @@ int EnergeticActor::reduceHP(int amount)  // returns the amount by which HP was 
 	{
 		m_healthPoints -= amount;
 		return amount;
+	}
+}
+
+void Anthill::doSomething()
+{
+	Coord current(getX(), getY());
+	if (!manageHealth())
+		return;
+	else if (getPtrToWorld()->eatFoodAtCurrentSquare(current, 10000, this))
+		return;
+	else if (getHealth() >= 2000) // still need to finish up determining the leader.
+	{
+		// StudentWorld takes care of adjusting its ant count and leader
+		getPtrToWorld()->addNewDuringGame(getColonyNumber(), current, 0, getColonyNumber(), getCompiler()); // make sure on the other side that compiler isn't nullptr
+		reduceHP(1500);
 	}
 }
 
@@ -215,18 +175,13 @@ bool Insect::canBeStunnedAtCurrentSquare(const Coord &current) const
 }
 
 // returns false if dead and should doSomething should stop. else, returns true.
-// may not need this.
-bool Grasshopper::manageHealth() // move this to EnergeticActor
+bool HungryActor::manageHealth()
 {
 	decrementHP();
-	if (getHealth() <= 0)
-	{
-		die();
-		return false;
-	}
-	return true;
+	return getHealth() > 0;
 }
 
+// returns false and decrement moves inactive if insect is not supposed to move; else, return true.
 bool Insect::manageDamage()
 {
 	if (getMovesInactive() > 0)
@@ -238,8 +193,213 @@ bool Insect::manageDamage()
 		return true;
 }
 
-// so the format above suggests that I should have a pure virtual isStunned common among the insect class
-// should ants and adult grasshoppers inherit from baby grasshoppers?
+void Ant::doSomething()
+{
+	if (!manageHealth())
+	{
+		die();
+		return;
+	}
+	else if (!manageDamage())
+		return;
+	else
+	{
+		Compiler::Command cmd;
+		m_commandCounter = 0; // no commands have been executed yet
+		Coord current(getX(), getY()); // used for passing in coordinate pairs to various functions
+		while(m_commandCounter < 10) // does there need to be another check for if all instructions have been looked through?
+		{
+			// get the command from element ic of the vector
+			if (!getCompiler()->getCommand(m_instructionCounter, cmd))
+			{
+				reduceHP(9000); // error - no such instruction!
+				return;
+			}
+			switch (cmd.opcode)
+			{
+			case Compiler::moveForward:
+			{
+				++m_instructionCounter;
+				if (moveInCurrentDirection())
+				{
+					m_wasBlocked = false;
+					m_wasBitten = false;
+				}
+				else
+				{
+					m_wasBlocked = true; // might have been bitten while here so don't change the state of m_wasBitten
+				}
+				return;
+			}
+			case Compiler::generateRandomNumber:
+				generateRandomNumberUpTo(cmd.operand1);
+				++m_instructionCounter; // advance to next instruction
+				break;
+			case Compiler::faceRandomDirection:
+			{
+				setRandomDirection(); 
+				++m_instructionCounter;
+				return; // changes the state of the simulation so return
+			}
+			case Compiler::bite:
+			{
+				attackEnemy(getColonyNumber(), current, 15);
+				++m_instructionCounter;
+				return; // same comment as above
+			}
+			case Compiler::eatFood:
+			{
+				int healthToAdd = reduceHeldFood(100);
+				++m_instructionCounter;
+				if (healthToAdd > 0)
+					addHealth(healthToAdd);
+				return; // an attempt to eat food counts as a change in the state of the simulation
+			}
+			case Compiler::pickupFood:
+			{
+				pickupFood(current);
+				++m_instructionCounter;
+				return; // same comment as above for pickupFood
+			}
+			case Compiler::dropFood:
+			{
+				int amountToDrop = reduceHeldFood(1800); // reduces amount of food held by as much as possible
+				++m_instructionCounter;
+				if (amountToDrop > 0)
+					getPtrToWorld()->addNewDuringGame(IID_FOOD, current, amountToDrop);
+				return;
+			}
+			case Compiler::emitPheromone:
+			{
+				addPheromone(current);
+				++m_instructionCounter;
+				return;
+			}
+			case Compiler::goto_command:
+				m_instructionCounter = stoi(cmd.operand1);
+				break;
+			case Compiler::if_command:
+				if (conditionFulfilled(cmd, current))
+					m_instructionCounter = stoi(cmd.operand2); // goto wherever was in second operand if true
+				else
+					++m_instructionCounter; // otherwise, just keep moving down instructions
+				break;
+			}
+			m_commandCounter++;
+		}
+	}
+}
+
+bool Ant::conditionFulfilled(Compiler::Command cmd, Coord location)
+{
+	int condition = stoi(cmd.operand1);
+	switch (condition)
+	{
+	case 0: //i_smell_danger_in_front_of_me
+	{ return getPtrToWorld()->dangerAhead(location, getColonyNumber(), getDirection()); }
+	case 1: //i_smell_pheromone_in_front_of_me
+	{ return getPtrToWorld()->pheromoneAhead(location, getColonyNumber(), getDirection()); }
+	case 2: //i_was_bit
+	{ return m_wasBitten; }
+	case 3: //i_am_carrying_food
+	{ return m_foodQuantityHeld != 0; }
+	case 4: //i_am_hungry
+	{ return getHealth() <= 25; }
+	case 5: //i_am_standing_on_my_anthill
+	{ return location == m_anthillCoords && getPtrToWorld()->howManyAreThereAtCurrentSquare(IID_ANT_HILL, location) != 0; }
+	case 6: //i_am_standing_on_food
+	{ return isThereFoodHere(location); }
+	case 7: //i_am_standing_with_an_enemy
+	{ return isThereEnemyHere(location);}
+	case 8: //i_was_blocked_from_moving
+	{ return m_wasBlocked; }
+	case 9: //last_random_number_was_zero
+	{ return m_lastRandInt == 0; }
+	default: {return false; }
+	}
+}
+
+bool Ant::isThereEnemyHere(Coord current)
+{
+	// what follows is an attempt to compensate for what dangerAhead does
+	// it goes one square in the direction dictated; to allow it to check
+	// location I want, I have to go one square in the opposite direction
+	switch (getDirection())
+	{
+	case up: 
+		current.setRow(current.getRow() - 1);
+		break;
+	case down:
+		current.setRow(current.getRow() + 1);
+		break;
+	case left:
+		current.setCol(current.getCol() + 1);
+		break;
+	case right:
+		current.setCol(current.getCol() - 1);
+		break;
+	}
+	return getPtrToWorld()->dangerAhead(current, getColonyNumber(), getDirection());
+}
+
+bool Ant::isThereFoodHere(Coord current)
+{
+	bool isFood = getPtrToWorld()->eatFoodAtCurrentSquare(current, 1, this);
+	if (isFood)
+	{
+		reduceHP(1);
+		getPtrToWorld()->addNewDuringGame(IID_FOOD, current, 1);
+	}
+	return isFood;
+}
+
+int Ant::reduceHeldFood(int amount)
+{
+	int maxReduced = m_foodQuantityHeld;
+	if (amount < maxReduced)
+	{
+		m_foodQuantityHeld -= amount;
+		return amount;
+	}
+	else
+	{
+		m_foodQuantityHeld = 0;
+		return maxReduced;
+	}
+}
+
+void Ant::pickupFood(Coord current)
+{
+	// this looks strange and needlessly complicated. to some degree it is, but it eliminates
+	// the need for another function in StudentWorld.
+	int amountPickedUp = getPtrToWorld()->eatFoodAtCurrentSquare(current, 400, this);
+	reduceHP(amountPickedUp);
+	addHeldFood(amountPickedUp);
+}
+
+void Ant::addHeldFood(int amount)
+{
+	int maxToAdd = 1800 - m_foodQuantityHeld;
+	if (maxToAdd < 0)
+		maxToAdd = 0;
+	amount < maxToAdd ? m_foodQuantityHeld += amount : m_foodQuantityHeld += maxToAdd;
+}
+
+void Ant::generateRandomNumberUpTo(std::string operand)
+{
+	int upTo = stoi(operand);
+	if (upTo <= 0) // just to be safe and have all my bases covered
+	{
+		m_lastRandInt = 0;
+		return;
+	}
+	m_lastRandInt = randInt(0, upTo);
+}
+
+void Ant::addPheromone(Coord current)
+{
+	getPtrToWorld()->addNewDuringGame(IID_PHEROMONE_TYPE0 + getColonyNumber(), current, 0, getColonyNumber());
+}
 
 bool BabyGrasshopper::doAdultOrImmatureThings()
 {
@@ -400,12 +560,13 @@ bool Insect::attackEnemy(int colonyNumber, Coord location, int damage)
 // performs the baby grasshopper's specified actions
 void Grasshopper::doSomething() // move a lot of this to Grasshopper
 {
-	/*incrementTimesCalled();
-	numberTimesCalled();*/
 	Coord currentLocation(getX(), getY());
 	updatePreviousLocation(); // should maybe get put in insect's doSomething
 	if (!manageHealth()) // if it returns false, doSomething should also return.
+	{
+		die();
 		return;
+	}
 	else if (!manageDamage())
 		return;
 	else if (doAdultOrImmatureThings()) // adult grasshoppers and ants need findEnemy(int colonyNumber, int location). used to be evolve
@@ -414,7 +575,7 @@ void Grasshopper::doSomething() // move a lot of this to Grasshopper
 			goToSleep();
 		return;
 	}
-	else if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) && randInt(0, 1))
+	else if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) && randInt(0, 1)) // 50% chance it will want to rest after eating
 	{                                        // split things up into void performMovement
 		/*goToSleep();
 		return;*/
@@ -423,7 +584,7 @@ void Grasshopper::doSomething() // move a lot of this to Grasshopper
 	else if (areWeThereYet()) // checks if there's no more distance to travel
 	{
 		addMoreDistance();
-		setDirection(getRandomDirection()); //this is how it should ultimately be implemented. the line below is purely for testing.
+		setRandomDirection(); //this is how it should ultimately be implemented. the line below is purely for testing.
 	}											//setDirection(up);
 	else if (!moveInCurrentDirection())
 		doneTraveling();
@@ -450,11 +611,11 @@ void Grasshopper::doSomething() // move a lot of this to Grasshopper
 void Poison::attackAllActorsAtCurrentSquare()
 {
 	Coord current(getX(), getY());
-	getPtrToWorld()->poisonAllAtCurrentSquare(current);
+	getPtrToWorld()->attackAllAtCurrentSquare(current, 'p');
 }
 
 void WaterPool::attackAllActorsAtCurrentSquare()
 {
 	Coord current(getX(), getY());
-	getPtrToWorld()->stunAllAtCurrentSquare(current);
+	getPtrToWorld()->attackAllAtCurrentSquare(current, 'w');
 }
