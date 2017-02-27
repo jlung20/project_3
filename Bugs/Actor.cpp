@@ -6,14 +6,15 @@
 //#include <iostream> // remove this after use
 #include <cstdlib>
 
-int Actor::getCurrentMove() const
-{ 
-	return ptrToWorld->getTicksElapsed(); 
-}
-
-
 // HEY! ADD COMMENTS!!!
-
+StudentWorld* Actor::getPtrToWorld()
+{
+	return ptrToWorld;
+}
+int Actor::getCurrentMove() const
+{
+	return ptrToWorld->getTicksElapsed();
+}
 
 bool Insect::die() // all insects
 {
@@ -70,7 +71,7 @@ void Anthill::doSomething()
 	Coord current(getX(), getY());
 	if (!manageHealth())
 		return;
-	else if (getPtrToWorld()->eatFoodAtCurrentSquare(current, 10000, this))
+	else if (getPtrToWorld()->eatFoodAtCurrentSquare(current, 10000, this) > 0)
 		return;
 	else if (getHealth() >= 2000) // still need to finish up determining the leader.
 	{
@@ -195,11 +196,9 @@ bool Insect::manageDamage()
 
 void Ant::doSomething()
 {
+	updatePreviousLocation();
 	if (!manageHealth())
-	{
-		die();
 		return;
-	}
 	else if (!manageDamage())
 		return;
 	else
@@ -275,6 +274,18 @@ void Ant::doSomething()
 				++m_instructionCounter;
 				return;
 			}
+			case Compiler::rotateClockwise:
+			{
+				rotateClockwise();
+				++m_instructionCounter;
+				return;
+			}
+			case Compiler::rotateCounterClockwise:
+			{
+				rotateCounterClockwise();
+				++m_instructionCounter;
+				return;
+			}
 			case Compiler::goto_command:
 				m_instructionCounter = stoi(cmd.operand1);
 				break;
@@ -287,6 +298,46 @@ void Ant::doSomething()
 			}
 			m_commandCounter++;
 		}
+	}
+}
+
+void Ant::rotateClockwise()
+{
+	Direction dir = getDirection();
+	switch (dir)
+	{
+	case up:
+		setDirection(right);
+		break;
+	case right:
+		setDirection(down);
+		break;
+	case down:
+		setDirection(left);
+		break;
+	case left:
+		setDirection(up);
+		break;
+	}
+}
+
+void Ant::rotateCounterClockwise()
+{
+	Direction dir = getDirection();
+	switch (dir)
+	{
+	case up:
+		setDirection(left);
+		break;
+	case right:
+		setDirection(up);
+		break;
+	case down:
+		setDirection(right);
+		break;
+	case left:
+		setDirection(down);
+		break;
 	}
 }
 
@@ -344,7 +395,7 @@ bool Ant::isThereEnemyHere(Coord current)
 
 bool Ant::isThereFoodHere(Coord current)
 {
-	bool isFood = getPtrToWorld()->eatFoodAtCurrentSquare(current, 1, this);
+	bool isFood = (getPtrToWorld()->eatFoodAtCurrentSquare(current, 1, this) > 0);
 	if (isFood)
 	{
 		reduceHP(1);
@@ -412,7 +463,6 @@ bool BabyGrasshopper::evolve()
 	if (getHealth() >= 1600)
 	{
 		reduceHP(9000); // effectively sets baby grasshopper to dead.
-		die();
 		Coord currentLocation(getX(), getY());
 		getPtrToWorld()->addNewDuringGame(IID_ADULT_GRASSHOPPER, currentLocation); // add adult grasshopper to map
 		return true;
@@ -510,30 +560,29 @@ bool AdultGrasshopper::isValidSquare(Coord square)
 	return x >= 0 && x < VIEW_WIDTH && y >= 0 && y < VIEW_HEIGHT;
 }
 
+// called if an adult grasshopper is bitten
 void AdultGrasshopper::biteBack()
 {
-	if (randInt(0, 1))
+	if (randInt(0, 1)) // 50% chance it will want to bite back
 	{
 		Coord current(getX(), getY());
-		attackEnemy(getColonyNumber(), current, 50);  // need to add info on where it is.
+		attackEnemy(getColonyNumber(), current, 50);  // attacks a random enemy on the square
 	}
 }
 
+// used in determining if something can be stunned or not
 void Insect::updatePreviousLocation()
 {
 	Coord newLocation(getX(), getY());
 	m_previousLocation = newLocation;
 }
 
+// this should make clear 
 void Insect::updateLastStunnedLocation(const Coord &newStunLocation)
 {
 	m_locationLastStunned = newStunLocation;
-	// not sure if this is safe, but it ensures that the function that checks for if an insect can be stunned will return false
-	m_previousLocation = newStunLocation;
+	m_previousLocation = newStunLocation; // this step ensures that
 }
-
-// also it seems like there's some issue with isDead()
-// fix function below.
 
 bool Insect::isAttackable(int colonyNumber, Actor* self)
 {
@@ -548,66 +597,43 @@ bool Insect::isAttackable(int colonyNumber, Actor* self)
 }
 
 // returns true if it attacks an enemy. otherwise, returns false. 
-// make sure that baby grasshoppers never call this.
 bool Insect::attackEnemy(int colonyNumber, Coord location, int damage)
 {
 	return getPtrToWorld()->biteEnemy(colonyNumber, location, damage, this);
 }
 
-// HEY! ADULT GRASSHOPPERS NEED A BITE BACK FUNCTION! so in StudentWorld function that does damage, if it's an adult grasshopper that gets bitten, it needs to respond.
-
-// need evolve function
-// performs the baby grasshopper's specified actions
-void Grasshopper::doSomething() // move a lot of this to Grasshopper
+// performs grasshopper's functions - doAdultOrImmatureThings does different things for adults and babies
+void Grasshopper::doSomething()
 {
 	Coord currentLocation(getX(), getY());
 	updatePreviousLocation(); // should maybe get put in insect's doSomething
 	if (!manageHealth()) // if it returns false, doSomething should also return.
-	{
-		die();
 		return;
-	}
 	else if (!manageDamage())
 		return;
-	else if (doAdultOrImmatureThings()) // adult grasshoppers and ants need findEnemy(int colonyNumber, int location). used to be evolve
+	else if (doAdultOrImmatureThings()) // adult grasshoppers bite and hop. babies can evolve
 	{
 		if (!isDead())
 			goToSleep();
 		return;
 	}
-	else if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) && randInt(0, 1)) // 50% chance it will want to rest after eating
-	{                                        // split things up into void performMovement
-		/*goToSleep();
-		return;*/
-		// should go straight to the end
+	else if (getPtrToWorld()->eatFoodAtCurrentSquare(currentLocation, 200, this) > 0 && randInt(0, 1)) // 50% chance it will want to rest after eating
+	{
+		// should go straight to the end if the above is true
 	}
 	else if (areWeThereYet()) // checks if there's no more distance to travel
 	{
 		addMoreDistance();
-		setRandomDirection(); //this is how it should ultimately be implemented. the line below is purely for testing.
-	}											//setDirection(up);
+		setRandomDirection();
+	}
 	else if (!moveInCurrentDirection())
 		doneTraveling();
 	else
 		oneStepCloser();
 	goToSleep();
-		/*if (getMovesInactive() > 0)
-		{
-			decrementMovesInactive();
-			return;
-		}
-		if (isStunned())
-		{
-			decrementMovesStunned();
-			return;
-		}
-		else if (isAsleep())
-		{
-			decrementMovesAsleep();
-			return;
-		}*/
 }
 
+// the following two poison and stun, respectively, actors that happen to land on their squares
 void Poison::attackAllActorsAtCurrentSquare()
 {
 	Coord current(getX(), getY());

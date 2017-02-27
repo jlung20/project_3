@@ -31,9 +31,6 @@ public:
 	virtual void cleanUp();
 	int getTicksElapsed() const { return m_ticksElapsed; }
 
-	// add a function for when stuff dies!!!
-
-	// starting to phase this function out...
 	// returns number of things in a current square-- doesn't say how much of say a certain pheromone there is at the square though
 	// also... the actorPtr is set to point to the first element in the vector that matches thingID or nullptr if nothing matches
 	int howManyAreThereAtCurrentSquare(int thingID, Coord location);
@@ -43,30 +40,25 @@ public:
 	void addNewDuringGame(int thingID, Coord location, int foodQuantity = 0, int colonyNum = -1, Compiler* compiler = nullptr);
 
 	// returns true if at least one unit of food can (and is) consumed
-	bool eatFoodAtCurrentSquare(Coord current, int amount, Actor* eater);
+	int eatFoodAtCurrentSquare(Coord current, int amount, Actor* eater);
 
-	//bool actorDie(Actor* actor);
-
-	// takes thingID and matches it based on properties of the actor
-	int StudentWorld::identifyByThingID(Actor* actor) const;
-
-	//void stunAllAtCurrentSquare(Coord current);
-
-	//void poisonAllAtCurrentSquare(Coord current);
 	void attackAllAtCurrentSquare(Coord current, char ch);
 
-	bool biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker); // need to check outOfBounds as well.
+	// bites a random enemy at the location if possible
+	bool biteEnemy(int colonyNumber, Coord location, int damage, Actor* attacker);
 	
+	// returns true if there's a pebble at the location
 	bool pathBlocked(Coord location);
 
+	// returns true if there's an enemy one square ahead in Direction dir from location
 	bool dangerAhead(Coord location, int colonyNumber, Actor::Direction dir);
-
+	
+	// returns true if there's a pheromone of the proper colony one square ahead in Direction from location
 	bool pheromoneAhead(Coord location, int colonyNumber, Actor::Direction dir);
 
 	~StudentWorld() {
-		//std::cerr << "Hello from destructor. Is this called before or after cleanUp()?" << std::endl;
 		cleanUp(); 
-	} // have this destructor also get rid of compilers
+	}
 
 private:
 	std::string anthillNames[4];
@@ -104,6 +96,9 @@ private:
 	bool identifyAndAllocate(Field::FieldItem item, Coord location, int colonyNum = -1, Compiler* compiler = nullptr);
 
 	int numberToBite(Coord location, int colonyNumber, Actor* notThisGuy);
+
+	// takes thingID and matches it based on properties of the actor
+	int StudentWorld::identifyByThingID(Actor* actor) const;
 
 	// removes all objects that have been marked dead
 	void removeDeadSimulationObjects();

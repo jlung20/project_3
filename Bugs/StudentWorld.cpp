@@ -166,7 +166,8 @@ int StudentWorld::move()
 			{
 				for (size_t vecIterator = 0; vecIterator < mapIterator->second.size(); vecIterator++)
 				{
-					if (mapIterator->second[vecIterator]->canStun())
+					// running this loop first to make sure that everything gets stunned or poisoned before trying to move away
+					if (mapIterator->second[vecIterator]->canStun() || mapIterator->second[vecIterator]->canStun())
 					{
 						(mapIterator->second[vecIterator])->doSomething();
 						(mapIterator->second[vecIterator])->updateLastMove(m_ticksElapsed);
@@ -344,15 +345,15 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 	{
 		Actor* actorPtr = getPtrToThingAtCurrentSquare(thingID, location);
 		// only one food per square
-		if (actorPtr == nullptr)
+		if (actorPtr == nullptr) // if there's no food object, add one
 		{
-			if (foodQuantity > 0)
+			if (foodQuantity > 0) // no point in adding a food object if it's not supposed to hold any food
 			{
 				Actor* newFoodPtr = new Food(location.getCol(), location.getRow(), foodQuantity, this);
 				addPtrInMappedVector(outOfBounds, newFoodPtr);
 			}
 		}
-		else
+		else // if there is a food object already, just add foodQuantity to it
 		{
 			actorPtr->addHealth(foodQuantity);
 		}
@@ -381,6 +382,7 @@ void StudentWorld::addNewDuringGame(int thingID, Coord location, int foodQuantit
 		case (IID_ANT_TYPE3): m_ants[3]++; break;
 		}
 		addPtrInMappedVector(outOfBounds, newAntPtr);
+		determineCurrentLeader();
 		return;
 	}
 
@@ -626,21 +628,17 @@ string StudentWorld::formatBetter(int ticks, int antOne, int antTwo, int antThre
 	return goodString;
 }
 
-bool StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eater)
+int StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eater)
 {
 	Actor* foodPtr = getPtrToThingAtCurrentSquare(IID_FOOD, current);
 	if (foodPtr == nullptr)
-		return false;
+		return 0;
 	else
 	{
 		int amountEaten = foodPtr->reduceHP(amount);
-		if (amountEaten <= 0)
-			return false;
-		else
-		{
+		if (amountEaten > 0)
 			eater->addHealth(amountEaten);
-			return true;
-		}
+		return amountEaten;
 	}
 }
 
@@ -782,7 +780,7 @@ void StudentWorld::attackAllAtCurrentSquare(Coord current, char ch)
 		{
 			if (ch == 'p')
 				actorPtr->reduceHP(150); // do 150 damage separate this into a separate function
-			else
+			else if (actorPtr->canBeStunnedAtCurrentSquare(current))
 			{
 				actorPtr->addMovesInactive(2); // stun
 				actorPtr->updateLastStunnedLocation(current); // indicate where actor has last been stunned
@@ -799,7 +797,7 @@ void StudentWorld::attackAllAtCurrentSquare(Coord current, char ch)
 			{
 				if (ch == 'p')
 					actorPtr->reduceHP(150); // do 150 damage separate this into a separate function
-				else
+				else if (actorPtr->canBeStunnedAtCurrentSquare(current))
 				{
 					actorPtr->addMovesInactive(2); // stun
 					actorPtr->updateLastStunnedLocation(current); // indicate where actor has last been stunned
