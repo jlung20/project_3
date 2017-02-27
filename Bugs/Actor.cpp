@@ -40,10 +40,6 @@ void EnergeticActor::addHealth(int amount) {
 		{
 			int maxToAdd = m_maxLimit - m_healthPoints;
 			amount < maxToAdd ? m_healthPoints += amount : m_healthPoints += maxToAdd;
-			/*int maxToAdd = m_maxLimit - amount;
-			if (maxToAdd < 0)
-				maxToAdd = 0;
-			amount < maxToAdd ? m_healthPoints += amount : m_healthPoints += maxToAdd;*/
 		}
 	}
 }
@@ -80,19 +76,6 @@ void Anthill::doSomething()
 		reduceHP(1500);
 	}
 }
-
-/*// decreases amount of food left. if amount of food desired is more than amount remaining,
-// amount of food left will be set to 0 (effectively dead)
-bool Food::beEaten(int amount)
-{
-	if (isDead)
-		return false;
-	else
-	{
-		reduceHP(amount); // don't need to check to see if the amount exceeds 
-		return true;
-	}
-}*/
 
 // returns if it's possible to move to a certain location
 bool Insect::canMove(const Coord &attemptedLocation)
@@ -204,9 +187,9 @@ void Ant::doSomething()
 	else
 	{
 		Compiler::Command cmd;
-		m_commandCounter = 0; // no commands have been executed yet
+		int commandCounter = 0; // no commands have been executed yet
 		Coord current(getX(), getY()); // used for passing in coordinate pairs to various functions
-		while(m_commandCounter < 10) // does there need to be another check for if all instructions have been looked through?
+		while(commandCounter < 10) // does there need to be another check for if all instructions have been looked through?
 		{
 			// get the command from element ic of the vector
 			if (!getCompiler()->getCommand(m_instructionCounter, cmd))
@@ -296,11 +279,12 @@ void Ant::doSomething()
 					++m_instructionCounter; // otherwise, just keep moving down instructions
 				break;
 			}
-			m_commandCounter++;
+			commandCounter++;
 		}
 	}
 }
 
+// rotates the ant 90 degrees clockwise
 void Ant::rotateClockwise()
 {
 	Direction dir = getDirection();
@@ -321,6 +305,7 @@ void Ant::rotateClockwise()
 	}
 }
 
+// rotates the ant 90 degrees counterclockwise
 void Ant::rotateCounterClockwise()
 {
 	Direction dir = getDirection();
@@ -393,6 +378,7 @@ bool Ant::isThereEnemyHere(Coord current)
 	return getPtrToWorld()->dangerAhead(current, getColonyNumber(), getDirection());
 }
 
+// if it's able to eat 1 unit of food there and then return it, there must be food there
 bool Ant::isThereFoodHere(Coord current)
 {
 	bool isFood = (getPtrToWorld()->eatFoodAtCurrentSquare(current, 1, this) > 0);
@@ -404,6 +390,7 @@ bool Ant::isThereFoodHere(Coord current)
 	return isFood;
 }
 
+//reduce the quantity of food held unless or until it reaches 0
 int Ant::reduceHeldFood(int amount)
 {
 	int maxReduced = m_foodQuantityHeld;
@@ -423,11 +410,20 @@ void Ant::pickupFood(Coord current)
 {
 	// this looks strange and needlessly complicated. to some degree it is, but it eliminates
 	// the need for another function in StudentWorld.
-	int amountPickedUp = getPtrToWorld()->eatFoodAtCurrentSquare(current, 400, this);
+	// so. eat as much food, up to 400 units.
+	int amountToEat = 1800 - m_foodQuantityHeld; // only try to eat as much food as there is space for it
+	int amountPickedUp;
+	if (amountToEat < 400)
+		amountPickedUp = getPtrToWorld()->eatFoodAtCurrentSquare(current, amountToEat, this);
+	else
+		amountPickedUp = getPtrToWorld()->eatFoodAtCurrentSquare(current, 400, this);
+	// remove the health gained because that's not really where the food is supposed to end up
 	reduceHP(amountPickedUp);
+	// add it to quantity held
 	addHeldFood(amountPickedUp);
 }
 
+// adds to the quantity of food held, until or unless it reaches the maximum limit
 void Ant::addHeldFood(int amount)
 {
 	int maxToAdd = 1800 - m_foodQuantityHeld;
@@ -460,7 +456,7 @@ bool BabyGrasshopper::doAdultOrImmatureThings()
 // returns true if it evolves
 bool BabyGrasshopper::evolve()
 {
-	if (getHealth() >= 1600)
+	if (getHealth() >= 1600) // it's time to evolve
 	{
 		reduceHP(9000); // effectively sets baby grasshopper to dead.
 		Coord currentLocation(getX(), getY());
@@ -473,29 +469,29 @@ bool BabyGrasshopper::evolve()
 bool AdultGrasshopper::doAdultOrImmatureThings()
 {
 	Coord location(getX(), getY());
-	if (attackEnemy(getColonyNumber(), location, 50))
+	if (attackEnemy(getColonyNumber(), location, 50)) // tries to bite enemy
 		return true;
 	else
-		return fly();
+		return fly(); // tries to fly
 }
 
 bool AdultGrasshopper::fly()
 {
-	if (randInt(0, 9) == 0)
+	if (randInt(0, 9) == 0) // one in ten chance
 	{
 		int numPossibleSquares = findNumberOfOpenSquares();
 		if (numPossibleSquares == 0)
-			return false;
+			return false; // can't fly if there's nowhere to fly to
 		else
 		{
-			int squareNum = randInt(0, numPossibleSquares - 1);
+			int squareNum = randInt(0, numPossibleSquares - 1); // pick a random square
 			Coord toJump = findNthOpenSquare(squareNum);
 			Coord outOfBounds;
 			if (toJump == outOfBounds)
 				return false;
 			else
 			{
-				moveTo(toJump.getCol(), toJump.getRow());
+				moveTo(toJump.getCol(), toJump.getRow()); // jump to that random square
 				return true;
 			}
 		}
@@ -513,15 +509,15 @@ Coord AdultGrasshopper::findNthOpenSquare(int n)
 		for (int movesX = -sum; movesX <= sum; movesX++) // distance along x
 		{
 			int posmovesY = sum - abs(movesX); // distance above y
-			Coord xOne(getX() + movesX, getY() + posmovesY);
+			Coord xOne(getX() + movesX, getY() + posmovesY); // semicircle part one
 			if (isValidSquare(xOne) && !getPtrToWorld()->pathBlocked(xOne))
 			{
-				if (spaceCount == n)
+				if (spaceCount == n) // checks if it's the nth open square
 					return xOne;
 				spaceCount++;
 			}
 			int negmovesY = -sum + abs(movesX); // distance below y
-			Coord xTwo(getX() + movesX, getY() + negmovesY);
+			Coord xTwo(getX() + movesX, getY() + negmovesY); // semicircle part two
 			if (isValidSquare(xTwo) && !getPtrToWorld()->pathBlocked(xTwo))
 			{
 				if (spaceCount == n)
@@ -586,14 +582,14 @@ void Insect::updateLastStunnedLocation(const Coord &newStunLocation)
 
 bool Insect::isAttackable(int colonyNumber, Actor* self)
 {
-	if (isDead())
+	if (isDead()) // no point biting something that's dead
 		return false;
-	else if (self == this)
+	else if (self == this) // don't bite yourself
 		return false;
-	else if (getColonyNumber() == -1)
+	else if (getColonyNumber() == -1) // can definitely bite a grasshopper
 		return true;
 	else
-		return colonyNumber != getColonyNumber(); 
+		return colonyNumber != getColonyNumber(); // can bite ants from other colonies
 }
 
 // returns true if it attacks an enemy. otherwise, returns false. 

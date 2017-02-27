@@ -39,14 +39,12 @@ public:
 	virtual bool canStun() const { return false; } // override for water
 	virtual bool canBeStunnedOrPoisoned() const { return false; } // override for adults and baby
 	virtual bool canBeEaten() const { return false; } // override for food, obviously
-	virtual bool canAttack() const { return false; } // override for ants and adult grasshoppers
 	virtual bool canEat() const { return false; } // override for animals
 	virtual bool canPoison() const { return false; } //override for poison
 	virtual bool canFly() const { return false; } // override for adult grasshoppers
-	virtual bool canBite() const { return false; } // override for some animals
 	virtual bool isAttackable(int colonyNumber, Actor* self = nullptr) { return false; } // determines what can be targeted
 	virtual bool isDead() const = 0; // pure virtual because there's a clear split further down between those that can and can't die
-	virtual int getColonyNumber() const { return m_colonyNumber; } // if it can't be associated with a particular colony, return -1
+	int getColonyNumber() const { return m_colonyNumber; } // if it can't be associated with a particular colony, return -1
 	virtual void updateLastStunnedLocation(const Coord &newStunLocation) {} // ensures that ants and baby g's are stunned the proper number of times
 	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const { return false; } // if it's not an ant or baby grasshopper, this is fine
 	virtual void setBitten() {} // shouldn't do anything for any other actor than ant.
@@ -57,7 +55,6 @@ public:
 	virtual ~Actor() {};
 	bool hasDoneSomething(int currentMove)  const { return currentMove == m_lastMove; };
 	void updateLastMove(int currentMove) { m_lastMove = currentMove; } // doing this is useful for checking if doSomething has been called on a given tick
-	int getCurrentMove() const;
 
 protected:
 	// allows derived classes to know what their StudentWorld is
@@ -74,11 +71,12 @@ protected:
 		default: return left;
 		}
 	}
+	int getCurrentMove() const;
 
 private:
 	StudentWorld* ptrToWorld;
-	int m_lastMove;
-	int m_colonyNumber;
+	int m_lastMove; // last tick on which doSomething was called
+	int m_colonyNumber; // -1 for most things
 };
 
 // includes all actors that have energy or health
@@ -88,21 +86,22 @@ public:
 		: Actor(imageID, x, y, worldPtr, dir, colonyNumber, depth), m_healthPoints(HP), m_maxLimit(maxHealth) {}
 	virtual bool hasEnergyOrHealth() const { return true; }
 	virtual void addHealth(int amount); // used both by StudentWorld and classes derived from this
-	int getHealth() const { return m_healthPoints; }
 	virtual int reduceHP(int amount); // returns amount by which HP was reduced
-	bool isDead() const { return m_healthPoints <= 0; }
+	virtual bool isDead() const { return m_healthPoints <= 0; }
 	virtual ~EnergeticActor() {}
 
+protected:
+	int getHealth() const { return m_healthPoints; }
+
 private:
-	int m_healthPoints;
-	int m_maxLimit;
-	int m_colonyNumber;
+	int m_healthPoints; // defining characteristic of class
+	int m_maxLimit; // only applicable for pheromone
 };
 
 class Food : public EnergeticActor {
 public:
 	Food(int x, int y, int health, StudentWorld* worldPtr) : EnergeticActor(IID_FOOD, x, y, worldPtr, health) {}
-	virtual void doSomething() {}
+	virtual void doSomething() {} // nothing to do
 	virtual bool canBeEaten() const { return true; } // because it's food
 	virtual ~Food() {}
 };
@@ -119,7 +118,7 @@ public:
 
 protected:
 	Compiler* getCompiler() { return m_compiler; } // bad news if something tries to dereference what this returns if it's nullptr
-	bool manageHealth();
+	bool manageHealth(); // decrements health and returns false if it's time to die
 	void decrementHP() { reduceHP(1); } // used only by classes derived from it.
 
 private:
@@ -151,7 +150,6 @@ public:
 		: HungryActor(imageID, x, y, worldPtr, startingHealth, -1, colonyNum, compiler, 1, Actor::getRandomDirection()), 
 		 m_movesInactive(0){} // deleted m_movesStunned(0),
 	virtual bool canBeStunnedOrPoisoned() const { return true; }
-	virtual bool canBite() const { return true;	}
 	virtual bool isAttackable(int colonyNumber, Actor* self);
 	virtual void updateLastStunnedLocation(const Coord &newStunLocation);
 	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const; // returns if it's possible for something to be stunned at current location
@@ -167,11 +165,11 @@ protected:
 	bool moveLeft();
 	bool moveInCurrentDirection();
 
-	bool manageDamage(); // decrements health. returns true if the insect can move during the turn.
+	bool manageDamage(); // decrements number of moves inactive. returns true if the insect can move during the turn.
 	void setRandomDirection() { setDirection(getRandomDirection()); }
 	int getMovesInactive() { return m_movesInactive; }
-	void updatePreviousLocation();
-	virtual bool attackEnemy(int colonyNumber, Coord location, int damage);
+	void updatePreviousLocation(); // changes previousLocation to a newer location
+	virtual bool attackEnemy(int colonyNumber, Coord location, int damage); // tries to bite enemy. returns true if successful
 
 private:
 	bool die(); // adds 100 food to square where insect died
@@ -179,7 +177,7 @@ private:
 	int m_movesInactive; // combines moves stunned and asleep
 	Coord m_locationLastStunned; // updates when stunned
 	Coord m_previousLocation; // updates the tick after an ant reaches a new square
-	virtual bool canMove(const Coord &attemptedLocation); // should it be virtual? will ant override it? might call it, right? and then do more stuff
+	bool canMove(const Coord &attemptedLocation);
 };
 
 // the big kahuna. not your average auntie.
@@ -187,9 +185,9 @@ class Ant : public Insect {
 public:
 	Ant(int imageID, int x, int y, StudentWorld* worldPtr, Compiler* complr, int colonyNum)
 		: Insect(imageID, x, y, worldPtr, 1500, colonyNum, complr),
-		m_instructionCounter(0), m_lastRandInt(0), m_foodQuantityHeld(0), m_commandCounter(0), 
-		m_wasBitten(false), m_wasBlocked(false), m_anthillCoords(x, y) {} //, m_lastSquare(x, y) {}
-	virtual void setBitten() { m_wasBitten = true; }
+		m_instructionCounter(0), m_lastRandInt(0), m_foodQuantityHeld(0),
+		m_wasBitten(false), m_wasBlocked(false), m_anthillCoords(x, y) {}
+	virtual void setBitten() { m_wasBitten = true; } // if bitten on square, this needs to be changed
 	virtual void doSomething();
 	virtual ~Ant() {}
 
@@ -199,16 +197,14 @@ private:
 	void generateRandomNumberUpTo(std::string operand); // uses provided randInt function
 	bool isThereFoodHere(Coord current); // determines if there's food at a given square
 	bool isThereEnemyHere(Coord current); // determines if there's an enemy at a given square
-	int m_instructionCounter;
+	int m_instructionCounter; // which instruction should be executed
 	int m_lastRandInt; // don't access before initializing... make sure that whatever uses this is aware of how it starts
-	int m_foodQuantityHeld;
-	int m_commandCounter;
-	int reduceHeldFood(int amount);
+	int m_foodQuantityHeld; // amount of food it's holding
+	int reduceHeldFood(int amount); // this and the following two manipulate m_foodQuantityHeld
 	void addHeldFood(int amount);
 	void pickupFood(Coord current);
-	Coord m_anthillCoords;
+	Coord m_anthillCoords; // location of anthill
 	bool conditionFulfilled(Compiler::Command cmd, Coord location);
-	//Coord m_lastSquare; // was initialized properly? update right after moving? make sure it works with other parts. might not be necessary b/c of what's in other function
 	bool m_wasBitten; // have function to manage this.
 	bool m_wasBlocked; // have function to manage this.
 	void rotateClockwise();
@@ -229,21 +225,21 @@ protected: // only classes derived from grasshopper require these functions
 	bool areWeThereYet() const { return m_distanceToTravel <= 0; } // checks if it's arrived
 	void doneTraveling() { m_distanceToTravel = 0; } // will be called if it's unable to keep going in a certain direction
 	void oneStepCloser() { m_distanceToTravel--; }
-	void addMoreDistance() { m_distanceToTravel = randInt(2, 10); }
+	void addMoreDistance() { m_distanceToTravel = randInt(2, 10); } // adds random amount of distance between 2 and 10 units
 
 private:
 	virtual bool doAdultOrImmatureThings() = 0;
-	int m_distanceToTravel;
+	int m_distanceToTravel; // distance still to go
 };
 
+// feeble little guy. but its best days are ahead of it. usually.
 class BabyGrasshopper : public Grasshopper {
 public:
 	BabyGrasshopper(int x, int y, StudentWorld* worldPtr) 
 		: Grasshopper(IID_BABY_GRASSHOPPER, x, y, worldPtr, 500) {}
-	virtual bool canAttack() const { return false; } // feeble little guy
 	virtual ~BabyGrasshopper() {}
 private:
-	bool evolve();
+	bool evolve(); // kills baby grasshopper and adds adult grasshopper
 	virtual bool doAdultOrImmatureThings();
 };
 
@@ -253,17 +249,15 @@ public:
 		: Grasshopper(IID_ADULT_GRASSHOPPER, x, y, worldPtr, 1600) {}
 	virtual bool canFly() const { return true; } // needs the following functions because it's so special
 	virtual bool canBeStunnedOrPoisoned() const { return false; }
-	//virtual bool canBeStunned() const { return false; }
-	//virtual bool canBePoisoned() const { return false; }
 	virtual bool canBeStunnedAtCurrentSquare(const Coord &current) const { return false; }
 	virtual void biteBack();
 	virtual ~AdultGrasshopper() {} // a virtual destructor is required for each one, parts not shared with the Actor base class would not be deleted
 private:
 	virtual bool doAdultOrImmatureThings();
-	bool fly();
-	int findNumberOfOpenSquares();
-	bool isValidSquare(Coord square);
-	Coord findNthOpenSquare(int n);
+	bool fly(); // it flies man. it flies.
+	int findNumberOfOpenSquares(); // finds number of open squares within a ten square radius
+	bool isValidSquare(Coord square); // determies if the square is valid so it doesn't hop away
+	Coord findNthOpenSquare(int n); // finds nth square that's open
 };
 
 class ImmortalActor : public Actor {
@@ -289,7 +283,7 @@ class Attacker : public ImmortalActor {
 public:
 	Attacker(int thingID, int x, int y, StudentWorld* worldPtr) : ImmortalActor(thingID, x, y, worldPtr) {}
 	virtual void doSomething() { attackAllActorsAtCurrentSquare(); }
-	virtual bool canAttack() { return true; }
+	//virtual bool canAttack() { return true; }
 	virtual ~Attacker() {}
 private:
 	virtual void attackAllActorsAtCurrentSquare() = 0;
@@ -301,7 +295,7 @@ public:
 	virtual bool canPoison() const { return true; } // because it's poisonous
 	virtual ~Poison() {}
 private:
-	virtual void attackAllActorsAtCurrentSquare();
+	virtual void attackAllActorsAtCurrentSquare(); // implemented slightly differently than for water pool
 };
 
 class WaterPool : public Attacker {

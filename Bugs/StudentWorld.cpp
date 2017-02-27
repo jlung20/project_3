@@ -78,14 +78,11 @@ int StudentWorld::init()
 		}
 	}
 
-	m_numAnthills = anthillCount; // useful later on for displaying
-	// MIGHT WANT TO UNCOMMENT THIS LATER!!!
-
-
-	/*if (anthillCount == 0 || anthillCount > 4)
-		return GWSTATUS_LEVEL_ERROR; // is this right?*/
+	m_numAnthills = anthillCount; // useful later on for determining how many anthills to compare to find leader
 
 	std::vector<std::string> fileNames = getFilenamesOfAntPrograms();
+	if (fileNames.size() != anthillCount)
+		return GWSTATUS_LEVEL_ERROR; // it would crash otherwise. checks that there are the proper number of anthills for compilers
 
 	for (int i = 0; i < anthillCount; i++)
 	{
@@ -209,7 +206,6 @@ int StudentWorld::move()
 		removeDeadSimulationObjects();
 	}
 	setDisplayText();
-	//determineCurrentLeader();
 	if (m_ticksElapsed == 2000)
 	{
 		if (m_currentAnthillLeader != -1)
@@ -222,10 +218,9 @@ int StudentWorld::move()
 	}
 	// the simulation is not yet over, continue!
 	return GWSTATUS_CONTINUE_GAME;
-	// after each any colony produces an ant, compare with all others to see which one has the most. so I should probably store that information somewhere...
-	// probably array? with function to figure things out
 }
 
+// responsible for memory management
 void StudentWorld::cleanUp()
 {
 	while (!actorMap.empty()) // keep going until all actor objects have been deleted
@@ -278,11 +273,11 @@ bool StudentWorld::identifyAndAllocate(Field::FieldItem item, Coord location, in
 		actorMap[location].push_back(anty); // place it in data structure
 		return true;
 	}
-	case (Field::food):
+	case (Field::food): // unlike later, there's no need to check for multiple instances of the same object! yay!
 	{
 		Actor* foodie = new Food(location.getCol(), location.getRow(), FOOD_SIZE_AT_START, this);
 		actorMap[location].push_back(foodie);
-		return true;
+		return true; // all of these return true if identified and added
 	}
 	case (Field::grasshopper):
 	{
@@ -456,7 +451,7 @@ bool StudentWorld::updateLocation(Coord &location, Actor::Direction dir)
 	switch (dir)
 	{
 	case Actor::up:
-		location.setRow(location.getRow() + 1);
+		location.setRow(location.getRow() + 1); // move one square in the given direction
 		if (!isValidPos(location)) // if it's not a valid location, there's no chance that there would be an enemy there
 			return false;
 		break;
@@ -561,11 +556,9 @@ void StudentWorld::setAnthillNames()
 		{
 			if (identifyByThingID(vecIter) == IID_ANT_HILL)
 			{
-				//auto anthillPtr = dynamic_cast<Anthill*>(vecIter);
-				//antColonyName = anthillPtr->getCompiler()->getColonyName();
 				int colonyNum = vecIter->getColonyNumber();
 				antColonyName = compilerArr[colonyNum]->getColonyName();
-				anthillNames[colonyNum] = antColonyName;
+				anthillNames[colonyNum] = antColonyName; // these anthill names will be displayed later
 			}
 		}
 	}
@@ -594,6 +587,7 @@ void StudentWorld::setDisplayText()
 	setGameStatText(s); // calls our provided GameWorld::setGameStatText
 }
 
+// makes a properly formatted string
 string StudentWorld::formatBetter(int ticks, int antOne, int antTwo, int antThree, int antFour, int leadingAnt)
 {
 	ostringstream formattedString;
@@ -617,13 +611,6 @@ string StudentWorld::formatBetter(int ticks, int antOne, int antTwo, int antThre
 			formattedString << m_ants[i];
 	}
 
-	// remove below later
-
-	/*if (!actorMap.empty())
-		cout << "not empty";
-	else
-		cout << "empty";*/
-
 	string goodString = formattedString.str();
 	return goodString;
 }
@@ -631,13 +618,13 @@ string StudentWorld::formatBetter(int ticks, int antOne, int antTwo, int antThre
 int StudentWorld::eatFoodAtCurrentSquare(Coord current, int amount, Actor *eater)
 {
 	Actor* foodPtr = getPtrToThingAtCurrentSquare(IID_FOOD, current);
-	if (foodPtr == nullptr)
+	if (foodPtr == nullptr) // means there's no food
 		return 0;
 	else
 	{
-		int amountEaten = foodPtr->reduceHP(amount);
+		int amountEaten = foodPtr->reduceHP(amount); // eat as much food as possible, up to amount
 		if (amountEaten > 0)
-			eater->addHealth(amountEaten);
+			eater->addHealth(amountEaten); // add the appropriate amount of health to eater
 		return amountEaten;
 	}
 }

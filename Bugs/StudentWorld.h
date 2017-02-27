@@ -22,7 +22,7 @@ class StudentWorld : public GameWorld
 {
 public:
 	StudentWorld(std::string assetDir)
-	 : GameWorld(assetDir), m_ticksElapsed(0), m_numAnthills(0), m_numCompilers(0)
+	 : GameWorld(assetDir), m_ticksElapsed(0), m_numAnthills(0), m_numCompilers(0), m_currentAnthillLeader(-1)
 	{
 	}
 
@@ -31,8 +31,7 @@ public:
 	virtual void cleanUp();
 	int getTicksElapsed() const { return m_ticksElapsed; }
 
-	// returns number of things in a current square-- doesn't say how much of say a certain pheromone there is at the square though
-	// also... the actorPtr is set to point to the first element in the vector that matches thingID or nullptr if nothing matches
+	// returns number of things of a certain type in current square
 	int howManyAreThereAtCurrentSquare(int thingID, Coord location);
 
 	// adds a new actor to the map or, if it's food or pheromone and one is already present, simply add to strength
@@ -42,6 +41,7 @@ public:
 	// returns true if at least one unit of food can (and is) consumed
 	int eatFoodAtCurrentSquare(Coord current, int amount, Actor* eater);
 
+	// used by poison and water pool to do their respective actions to all susceptible actor objects at a given location
 	void attackAllAtCurrentSquare(Coord current, char ch);
 
 	// bites a random enemy at the location if possible
@@ -56,9 +56,7 @@ public:
 	// returns true if there's a pheromone of the proper colony one square ahead in Direction from location
 	bool pheromoneAhead(Coord location, int colonyNumber, Actor::Direction dir);
 
-	~StudentWorld() {
-		cleanUp(); 
-	}
+	~StudentWorld() { cleanUp(); }
 
 private:
 	std::string anthillNames[4];
@@ -95,6 +93,7 @@ private:
 	// then stores the pointer in the map in the coordinate pair that corresponds to location
 	bool identifyAndAllocate(Field::FieldItem item, Coord location, int colonyNum = -1, Compiler* compiler = nullptr);
 
+	// determines the number of actors that can be bitten
 	int numberToBite(Coord location, int colonyNumber, Actor* notThisGuy);
 
 	// takes thingID and matches it based on properties of the actor
@@ -112,6 +111,7 @@ private:
 
 	Actor* getPtrToIthVictim(Coord location, int colonyNumber, Actor* notThisGuy, int victimNumber);
 
+	// moves the location to one square in the given direction
 	bool updateLocation(Coord &location, Actor::Direction dir);
 
 	// also need a function that checks if there's anything mapped to (-1, -1) that's actually somewhere of interest.
