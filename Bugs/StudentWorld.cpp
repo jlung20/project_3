@@ -4,9 +4,8 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
-//#include <iostream> // remove later
 using namespace std;
-// make tester programs!
+
 
 GameWorld* createStudentWorld(string assetDir)
 {

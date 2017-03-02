@@ -3,10 +3,8 @@
 #include "GraphObject.h"
 #include "Compiler.h"
 #include <string>
-//#include <iostream> // remove this after use
 #include <cstdlib>
 
-// HEY! ADD COMMENTS!!!
 StudentWorld* Actor::getPtrToWorld()
 {
 	return ptrToWorld;
@@ -69,10 +67,10 @@ void Anthill::doSomething()
 		return;
 	else if (getPtrToWorld()->eatFoodAtCurrentSquare(current, 10000, this) > 0)
 		return;
-	else if (getHealth() >= 2000) // still need to finish up determining the leader.
+	else if (getHealth() >= 2000)
 	{
 		// StudentWorld takes care of adjusting its ant count and leader
-		getPtrToWorld()->addNewDuringGame(getColonyNumber(), current, 0, getColonyNumber(), getCompiler()); // make sure on the other side that compiler isn't nullptr
+		getPtrToWorld()->addNewDuringGame(getColonyNumber(), current, 0, getColonyNumber(), getCompiler()); // adds an ant to the simulation
 		reduceHP(1500);
 	}
 }
@@ -81,7 +79,7 @@ void Anthill::doSomething()
 bool Insect::canMove(const Coord &attemptedLocation)
 {
 	//Actor* uselessPtr;
-	return !getPtrToWorld()->pathBlocked(attemptedLocation); // remove all of the things of this form. changed from identify actors at current square
+	return !getPtrToWorld()->pathBlocked(attemptedLocation); // if there's nothing blocking the insect, then it can move to its desired square
 }
 
 // the following move functions are pretty self-explanatory
@@ -274,7 +272,7 @@ void Ant::doSomething()
 				break;
 			case Compiler::if_command:
 				if (conditionFulfilled(cmd, current))
-					m_instructionCounter = stoi(cmd.operand2); // goto wherever was in second operand if true
+					m_instructionCounter = stoi(cmd.operand2); // go to wherever was in second operand if true
 				else
 					++m_instructionCounter; // otherwise, just keep moving down instructions
 				break;
@@ -410,7 +408,7 @@ void Ant::pickupFood(Coord current)
 {
 	// this looks strange and needlessly complicated. to some degree it is, but it eliminates
 	// the need for another function in StudentWorld.
-	// so. eat as much food, up to 400 units.
+	// ant eats as much food as possible, up to 400 units.
 	int amountToEat = 1800 - m_foodQuantityHeld; // only try to eat as much food as there is space for it
 	int amountPickedUp;
 	if (amountToEat < 400)
@@ -573,11 +571,10 @@ void Insect::updatePreviousLocation()
 	m_previousLocation = newLocation;
 }
 
-// this should make clear 
 void Insect::updateLastStunnedLocation(const Coord &newStunLocation)
 {
 	m_locationLastStunned = newStunLocation;
-	m_previousLocation = newStunLocation; // this step ensures that
+	updatePreviousLocation(); // this step ensures that the ant knows that it's now been at the square long enough to have been stunned
 }
 
 bool Insect::isAttackable(int colonyNumber, Actor* self)

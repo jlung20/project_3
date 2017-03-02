@@ -3,15 +3,11 @@
 
 #include "GameWorld.h"
 #include "GameConstants.h"
-#include "Actor.h"  // does this make sense?
+#include "Actor.h"
 #include "Field.h"
 #include <vector>
 #include <map>
 #include <string>
-//#include <iostream> // delete this later
-//class Actor; // does this make more sense?
-
-// Students:  Add code to this file, StudentWorld.cpp, Actor.h, and Actor.cpp
 
 // need this comparison operator in order to use map
 // need to put the definition in .cpp or it would've been defined multiple times
@@ -65,7 +61,7 @@ private:
 	int m_ants[4] = { 0, 0, 0, 0 }; // intended to keep track of how many ants each anthill has
 	int m_antRank[4] = { 1, 1, 1, 1 }; // there is no leader. remove if I end up not going in this direction
 	int m_currentAnthillLeader; // this keeps track of which anthill would win if the game were to end at any given time.
-	// must check every time an ant dies or is generated that this remains true. change if necessary.
+	// must check every time an ant dies or is generated that this remains true.
 	// if it's -1, there is no leader.
 	Compiler* compilerArr[4]; // this strange thing is here so that the compilers will only get deleted once
 	int m_numCompilers;
@@ -74,11 +70,7 @@ private:
 	void setAnthillNames();
 	std::string getWinningAntName();
 	std::map<Coord, std::vector<Actor*>> actorMap;   // virtual map of locations of things in world
-	// these are the actors that are added over the course of a tick. placed in this vector temporarily so that 
-	// they don't screw up iterators
-	//std::vector<Actor*> actorsToBeAdded;
-	// actors that have moved from their original locations. placed here temporarily so they don't mess up iterators
-	//std::map<Coord, std::vector<Actor*>> actorsToBeMoved;
+
 	void addPtrInMappedVector (Coord coordinates, Actor* act) // adds a pointer to an Actor to the map at a certain location
 	{
 		actorMap[coordinates].push_back(act); // should this be insert?
@@ -113,8 +105,6 @@ private:
 
 	// moves the location to one square in the given direction
 	bool updateLocation(Coord &location, Actor::Direction dir);
-
-	// also need a function that checks if there's anything mapped to (-1, -1) that's actually somewhere of interest.
 };
 
 #endif // STUDENTWORLD_H_

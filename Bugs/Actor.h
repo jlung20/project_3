@@ -7,11 +7,6 @@
 class StudentWorld;
 
 const int FOOD_SIZE_AT_START = 6000;
-const int FOOD_FROM_DEAD_INSECT = 100;
-
-// go through all these comments and change as necessary
-// remove unnecessary data members and functions.
-// check that all private data members are good.
 
 // simplifies descriptions of points. as spec instructs, x and y are not member vars of graphobject's derived classes
 class Coord {
